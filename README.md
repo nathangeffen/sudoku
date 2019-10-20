@@ -17,33 +17,29 @@ It's all done from the command line.
 
 Options are:
 
-- To creates a puzzle. Argument of 0 is easiest. 2 or higher is very hard.
+--create (or -c) <hardness>
+Creates a puzzle. Argument of 0 is easiest. 2 or higher is very hard.
 
-     --create (or -c) <hardness>
+--symmetrical (or -m)
+Ensures the puzzle created will be symmetrical
 
-- Ensures the puzzle created will be symmetrical (place before -c)
+--solve (or -s) <puzzle>
+Solves a puzzle. Argument is string of 81 digits from 0 to 9.
 
-     --symmetrical (or -m)
+--depth (or -d) <integer>
+Sets the maximum recursive depth to search.
 
-- Solve a puzzle. Argument is string of 81 digits from 0 to 9.
+--random-seed (or -r) <integer>
+Sets the random seed (which otherwise is set by the time).
 
-     --solve (or -s) <puzzle>
+--verbose (or -v) <0 or 1>
+Print out less (0) or more (1). By default, output is verbose.
 
-- Set the maximum recursive depth to search (should seldom be used)
+--test (or -t)
+Runs a test suite.
 
-     --depth (or -d) <integer>
-
-- Set the random seed (which otherwise is set by the time).
-
-     --random-seed (or -r) <integer>
-
-- Runs a test suite.
-
-     --test (or -t)
-
-- Prints help.
-
-      --help (or -h)
+--help (or -h)
+Prints this message.
 
 Examples:
 
@@ -59,6 +55,16 @@ Examples:
 - Solve  puzzle
 
    ./sudoku -s 300985700008000020000400008000630400005821900009047000600004000010000200002106009
+
+If you wish to use this program's output as input to another program, you'll
+want to turn off verbosity. E.g.
+
+    ./sudoku -v 0 -c 0
+
+Note that the order of the command line options is important. This wouldn't turn
+off verbosity:
+
+    ./sudoku -c 0 -v 0
 
 ## Implementation
 

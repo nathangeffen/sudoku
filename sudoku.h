@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <getopt.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,9 @@
 #define CREATING_MAX_DEPTH 12
 #define SOLVING_MAX_DEPTH 100000
 #define BITS (BOARD_SIZE / WORD_SIZE + 1)
+#define OPTIONAL 0
+#define ESSENTIAL 1
+
 
 static const size_t rows[BLOCK_SIZE][BLOCK_SIZE] = {
     {0,   1,  2,  3,  4,  5,  6,  7,  8 },
@@ -303,18 +307,20 @@ const struct option long_options[] = {
     {"solve",        required_argument, 0,  's' },
     {"depth",        required_argument, 0,  'd' },
     {"random-seed",  required_argument, 0,  'r' },
+    {"verbose",      required_argument, 0,  'v' },
     {"test",         no_argument,       0,  't' },
     {"help",         no_argument,       0,  'h' },
     {0,              0,                 0,   0  }
 };
 
-const char *options = "c:ms:d:vr:th";
+const char *options = "c:ms:d:r:v:th";
 const char *arguments[] = {
     "hardness",
     "",
     "puzzle",
     "integer",
     "integer",
+    "0 or 1",
     "",
     "",
     ""
@@ -326,11 +332,12 @@ const char *descriptions[] = {
     "Solves a puzzle. Argument is string of 81 digits from 0 to 9.",
     "Sets the maximum recursive depth to search.",
     "Sets the random seed (which otherwise is set by the time).",
+    "Print out less (0) or more (1). By default, output is verbose.",
     "Runs a test suite.",
     "Prints this message.",
     ""
 };
 
-
+static int verbose = 1;
 
 #endif

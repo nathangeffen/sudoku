@@ -6,6 +6,18 @@
 
 #include "sudoku.h"
 
+void printf_c(int verbosity,
+              const char *format,
+              ...)
+{
+    if (verbosity == ESSENTIAL || verbose) {
+            va_list args;
+            va_start(args, format);
+            vprintf(format, args);
+            va_end(args);
+    }
+}
+
 uint32_t
 set_only_bit(uint32_t n)
 {
@@ -85,11 +97,11 @@ print_set_bits(uint32_t num)
     uint32_t vals[BLOCK_SIZE];
     get_all_set_bits_as_vals(num, vals);
     if (vals[0] == 0) {
-        putchar('_');
+        printf_c(ESSENTIAL, "_");
     } else {
         for (size_t i = 0; i < BLOCK_SIZE && vals[i]; i++) {
             if (i > 0) putchar(',');
-            printf("%u", vals[i]);
+            printf_c(ESSENTIAL, "%u", vals[i]);
         }
     }
 }
@@ -100,15 +112,15 @@ print_bitboard(const struct board_s *bitboard)
     for (size_t i = 0; i < (BLOCK_SIZE * BLOCK_SIZE); i++) {
         print_set_bits(bitboard->grid[i]);
         if ( (i + 1) == BOARD_SIZE)
-            putchar('\n');
+            printf_c(ESSENTIAL, "\n");
         else if ( (i + 1) % (BLOCK_SIZE * MINI_BLOCK_SIZE) == 0)
-            printf("\n\n");
+            printf_c(ESSENTIAL, "\n\n");
         else if ( (i + 1) % BLOCK_SIZE == 0)
-            printf("\n");
+            printf_c(ESSENTIAL, "\n");
         else if ( (i + 1) % MINI_BLOCK_SIZE == 0)
-            printf("\t\t");
+            printf_c(ESSENTIAL, "\t\t");
         else
-            putchar('\t');
+            printf_c(ESSENTIAL, "\t");
     }
 }
 
@@ -118,9 +130,9 @@ print_binary(uint32_t n)
 {
     for(int i = 0; i < 9; i++) {
         if (n & 1)
-            printf("1");
+            printf_c(ESSENTIAL, "1");
         else
-            printf("0");
+            printf_c(ESSENTIAL, "0");
         n >>= 1;
     }
 }
@@ -184,19 +196,19 @@ print_puzzle(const grid_t grid)
 {
     for (size_t i = 0; i < (BLOCK_SIZE * BLOCK_SIZE); i++) {
         if (grid[i] == 0)
-            putchar('_');
+            printf_c(ESSENTIAL, "_");
         else
-            printf("%u", get_bit_index(grid[i]) + 1);
+            printf_c(ESSENTIAL, "%u", get_bit_index(grid[i]) + 1);
         if ( (i + 1) == BOARD_SIZE)
-            putchar('\n');
+            printf_c(ESSENTIAL, "\n");
         else if ( (i + 1) % (BLOCK_SIZE * MINI_BLOCK_SIZE) == 0)
-            printf("\n\n");
+            printf_c(ESSENTIAL, "\n\n");
         else if ( (i + 1) % BLOCK_SIZE == 0)
-            printf("\n");
+            printf_c(ESSENTIAL, "\n");
         else if ( (i + 1) % MINI_BLOCK_SIZE == 0)
-            printf("  ");
+            printf_c(ESSENTIAL, "  ");
         else
-            putchar(' ');
+            printf_c(ESSENTIAL, " ");
     }
 }
 
@@ -366,31 +378,57 @@ void print_result(const struct board_s *board)
 {
     int n = num_solutions(board);
     if (board->too_difficult) {
-        printf("Puzzle was too hard to solve.\n");
+        printf_c(ESSENTIAL, "Puzzle was too hard to solve.\n");
     } else if (n == 1) {
-        printf("Unique solution with depth %d\n", board->depth);
-        print_puzzle(board->solutions[0]);
+        printf_c(ESSENTIAL, "Unique solution with depth %d\n",
+                 board->depth);
+        if (verbose)
+            print_puzzle(board->solutions[0]);
     } else if (n > 1) {
-        printf("Multiple solutions\n");
+        printf_c(ESSENTIAL, "Multiple solutions\n");
         for (size_t j = 0; j < MAX_SOLUTIONS; j++) {
-            printf("Solution %zu\n", j);
+            printf_c(ESSENTIAL, "Solution %zu\n", j);
             print_puzzle(board->solutions[j]);
-            printf("\n");
+            printf_c(ESSENTIAL, "\n");
         }
     } else {
-        printf("Invalid puzzle\n");
+        printf_c(ESSENTIAL, "Invalid puzzle\n");
     }
+}
+
+void
+print_essential_output(struct board_s *board)
+{
+    int count = 0;
+    for (size_t i = 0; i < BOARD_SIZE; i++)
+        if (count_bits(board->grid[i]) == 1)
+            count++;
+    printf_c(ESSENTIAL, "Count: %d\n", count);
+    printf_c(ESSENTIAL, "Depth: %d\n", board->depth);
+
+    printf_c(ESSENTIAL, "Puzzle: ", board->depth);
+
+    for (size_t i = 0; i < BOARD_SIZE; i++)
+        if (board->grid[i])
+            printf("%u", get_bit_index(board->grid[i]) + 1);
+        else
+            printf("0");
+    printf("\n");
 }
 
 void
 output_solution(grid_t grid, int max_depth)
 {
-    struct board_s bitboard;
-    bitboard = convert_to_bitboard(grid);
-    print_puzzle(bitboard.grid);
-    solve(&bitboard, max_depth);
+    struct board_s board;
+    board = convert_to_bitboard(grid);
+    if (verbose)
+        print_puzzle(board.grid);
+    solve(&board, max_depth);
 
-    print_result(&bitboard);
+    if (verbose)
+        print_result(&board);
+
+    print_essential_output(&board);
 }
 
 
@@ -443,7 +481,7 @@ create_puzzle(int min_depth,
     // Loop until we have a valid puzzle with a unique solution
     // of sufficient depth
     do {
-        printf("Trying ... %u\n", c);
+        printf_c(OPTIONAL, "Trying ... %u\n", c);
 
         // We use two boards. One will be passed to the solving algorithm
         // and will used to test for a solution.
@@ -538,7 +576,6 @@ void
 output_puzzle(int min_depth, bool symmetry, int max_depth)
 {
     struct board_s board;
-    int count = 0;
 
     if (max_depth - min_depth < 3) {
         fprintf(stderr, "Depth for puzzle too close to max depth.\n");
@@ -556,39 +593,32 @@ output_puzzle(int min_depth, bool symmetry, int max_depth)
     }
 
     board = create_puzzle(min_depth, max_depth, symmetry);
-    print_puzzle(board.grid);
+    if (verbose)
+        print_puzzle(board.grid);
 
-    for (size_t i = 0; i < BOARD_SIZE; i++)
-        if (count_bits(board.grid[i]) == 1)
-            count++;
-    printf("Count %u.\n", count);
+    if (verbose)
+        print_result(&board);
 
-    print_result(&board);
-    for (size_t i = 0; i < BOARD_SIZE; i++)
-        if (board.grid[i])
-            printf("%u", get_bit_index(board.grid[i]) + 1);
-        else
-            putchar('0');
-    putchar('\n');
+    print_essential_output(&board);
 }
 
 
 void
 print_help(const char *prog)
 {
-    printf("%s: A Sudoku puzzle creater and solver\n", prog);
-    printf("Options are: \n\n");
+    printf_c(ESSENTIAL, "%s: A Sudoku puzzle creater and solver\n", prog);
+    printf_c(ESSENTIAL, "Options are: \n\n");
     for (int i = 0; i < sizeof(long_options)/sizeof(struct option) - 1; i++) {
-        printf("--%s (or -%c) ", long_options[i].name, long_options[i].val);
+        printf_c(ESSENTIAL, "--%s (or -%c) ", long_options[i].name, long_options[i].val);
         if (long_options[i].has_arg == required_argument)
-            printf("<%s>", arguments[i]);
+            printf_c(ESSENTIAL, "<%s>", arguments[i]);
         putchar('\n');
-        printf("%s\n\n", descriptions[i]);
+        printf_c(ESSENTIAL, "%s\n\n", descriptions[i]);
     }
-    printf("Examples:\n");
-    printf("%s -c 0\n (Creates a simple puzzle)\n", prog);
-    printf("%s -m -c 2\n (Creates a hard symmetrical puzzle)\n", prog);
-    printf("%s -s 3009857000080000200004000080006304000058219000090470006"
+    printf_c(ESSENTIAL, "Examples:\n");
+    printf_c(ESSENTIAL, "%s -c 0\n (Creates a simple puzzle)\n", prog);
+    printf_c(ESSENTIAL, "%s -m -c 2\n (Creates a hard symmetrical puzzle)\n", prog);
+    printf_c(ESSENTIAL, "%s -s 3009857000080000200004000080006304000058219000090470006"
            "00004000010000200002106009\n"
            "(Solves the puzzle)\n", prog);
 }
@@ -631,11 +661,14 @@ void tests()
     for (size_t i = 0; i < n; i++) {
         struct board_s solution;
 
-        printf("Puzzle %zu - %s - before\n", i, puzzles[i].description);
+        printf_c(OPTIONAL, "Puzzle %zu - %s - before\n",
+                 i, puzzles[i].description);
         solution = convert_to_bitboard(puzzles[i].grid);
-        print_puzzle(solution.grid);
+        if (verbose)
+            print_puzzle(solution.grid);
         solve(&solution, SOLVING_MAX_DEPTH);
-        printf("Puzzle %zu - %s - after (max depth: %d, max iterations: %d)\n",
+        printf_c(OPTIONAL, "",
+                 "Puzzle %zu - %s - after (max depth: %d, max iterations: %d)\n",
                i, puzzles[i].description, solution.depth,
                solution.iterations);
         int n = num_solutions(&solution);
@@ -643,7 +676,8 @@ void tests()
             ++successes;
         else
             ++failures;
-        print_result(&solution);
+        if (verbose)
+            print_result(&solution);
     }
 
     // Test creator
@@ -654,10 +688,12 @@ void tests()
         ++successes;
     else
         ++failures;
-    print_puzzle(solution.grid);
-    print_result(&solution);
-
-    printf("Successes: %d. Failures: %d.\n", successes, failures);
+    if (verbose) {
+        print_puzzle(solution.grid);
+        print_result(&solution);
+    }
+    printf_c(ESSENTIAL, "Successes: %d. Failures: %d.\n",
+             successes, failures);
 }
 
 int
@@ -691,6 +727,9 @@ main(int argc, char *argv[])
         case 's':
             process_arg_for_solving(optarg, max_depth);
             break;
+        case 'v':
+            verbose = atoi(optarg);
+            break;
         case 't':
             tests();
             break;
@@ -699,8 +738,10 @@ main(int argc, char *argv[])
             break;
         default:
             print_help(argv[0]);
+            exit(EXIT_FAILURE);
             break;
         };
     }
+
     return 0;
 }

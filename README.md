@@ -51,7 +51,8 @@ Examples:
 
     ./sudoku -c 0
 
-- Creates a hard symmetrical puzzle
+- Creates a hard symmetrical puzzle (Warning: This can take anything from a
+  second to several hours, depending on chance.)
 
     ./sudoku -m -c 2
 

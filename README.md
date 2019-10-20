@@ -45,16 +45,16 @@ Examples:
 
 - Create a simple puzzle:
 
-    ./sudoku -c 0
+        ./sudoku -c 0
 
 - Creates a hard symmetrical puzzle (Warning: This can take anything from a
   second to several hours, depending on chance.)
 
-    ./sudoku -m -c 2
+        ./sudoku -m -c 2
 
 - Solve  puzzle
 
-   ./sudoku -s 300985700008000020000400008000630400005821900009047000600004000010000200002106009
+        ./sudoku -s 300985700008000020000400008000630400005821900009047000600004000010000200002106009
 
 If you wish to use this program's output as input to another program, you'll
 want to turn off verbosity. E.g.

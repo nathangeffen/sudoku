@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width">
+        <title>Play Sudoku!</title>
+        <style>
+         #sudoku-1, #sudoku-2 {
+             max-width: 800px;
+         }
+        </style>
+        <link rel="stylesheet" href="sudoku.css">
+    </head>
+    <body>
+        <div id="sudoku-1">
+        </div>
+        <div id="sudoku-2">
+        </div>
+        <!-- <script
+	     src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+	     integrity="sha256-4+XzXVhsDmqanXGHaHvgh1gMQKX40OUvDEBTu8JcmNs="
+	     crossorigin="anonymous">
+             </script> -->
+        <script src="sudoku.js"></script>
+        <script>
+         "use strict";
+         const hard = "000005001004600200030970040189000000450020098000000314090064020008007900700300000";
+         const easy = "400700090000400006020009080001008034072904510840300700030800040700001000090002005";
+         const almost_solved = "458726193917483256623159487561278934372964518849315762235897641786541329194632800";
+         Sudoku.create('sudoku-1', almost_solved, {try_load: true,
+                                                   clues_on: false,
+                                                   clues_button: false});
+         Sudoku.create('sudoku-2', hard);
+        </script>
+    </body>
+</html>

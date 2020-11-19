@@ -1,3 +1,4 @@
+/* sudoku.js 1.0 */
 "use strict";
 
 (function (Sudoku) {

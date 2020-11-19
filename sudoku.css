@@ -18,6 +18,7 @@
     border-right: 1px solid black;
     border-bottom: 1px solid black;
     font-size: 1.2em;
+    font-weight: bold;
 }
 
 .sudoku-incomplete {
@@ -93,27 +94,23 @@
 .sudoku-protected {
     font-size: 1.2em;
     background-color: lightgray;
-    font-weight: bold;
 }
 
-.sudoku-duplicate-1-protected {
-    background-color: red;
+.sudoku-one-to-one {
+    color: red;
 }
 
-.sudoku-duplicate-1-unprotected {
-    background-color: #DD99CC;
+.sudoku-one-to-many {
+    color: blue;
 }
 
-.sudoku-duplicate-gt-1 {
-    background-color: #99ff99;
+.sudoku-many-to-one {
+    color: blue;
 }
 
-div.sudoku-div.sudoku-no-clues td  {
-    background-color: white;
-}
-
-div.sudoku-div.sudoku-no-clues td.sudoku-protected {
-    background-color: lightgray;
+.sudoku-many-to-many {
+/*    color: green;
+    font-weight: bold;*/
 }
 
 .sudoku-buttons {

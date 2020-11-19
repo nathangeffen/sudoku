@@ -1,6 +1,6 @@
 "use strict";
 
-(function ( sudoku) {
+(function (Sudoku) {
 
     const sudoku_prefix = 'Sudoku-ng-';
 
@@ -75,6 +75,14 @@
         [8, 8, 6], [8, 8, 7], [8, 8, 8]
     ];
 
+
+    const DUPLICATE = {
+        no: 0,
+        many_to_many: 1,
+        many_to_one: 2,
+        one_to_many: 3,
+        one_to_one: 4,
+    }
 
     let active_block = null;
 
@@ -157,32 +165,49 @@
         }
     }
 
-    const isDuplicateGroup = (blocks, block, index, group) => {
+    const isDuplicateGroup = (blocks, index, group) => {
+        let one_to_many = false;
+        let many_to_many = false;
+
+        const val_1 = getBlockValue(blocks[index]);
+        if (val_1 == "0") return DUPLICATE.no;
+
         for (const i of group) {
-            if (index === i) continue;
-            const val_1 = getBlockValue(blocks[i]);
-            const val_2 = getBlockValue(block);
-            if (val_1 != "0" && val_2 != "0") {
-                if (val_1.includes(val_2) || val_2.includes(val_1)) {
-                    return true;
+            const val_2 = getBlockValue(blocks[i]);
+            if (index === i || val_2 === "0") continue; // same block or cf. space
+            if (val_1.length === 1) { // Check for one_to_one or one_to_many
+                if (val_1 === val_2) {
+                    return DUPLICATE.one_to_one;
+                } else if (val_2.includes(val_1)) {
+                    one_to_many = true;
+                }
+            } else { // Check for many_to_one or many_to_many
+                if (val_2.length === 1 && val_1.includes(val_2)) {
+                    return DUPLICATE.many_to_one;
+                } else if (val_1 === val_2) {
+                    many_to_many = true;
                 }
             }
         }
-        return false;
+
+        if (one_to_many) return DUPLICATE.one_to_many;
+        if (many_to_many) return DUPLICATE.many_to_many;
+        return DUPLICATE.no;
     }
 
     const isDuplicateBlock = (blocks, block) => {
+        let result_rows = DUPLICATE.no;
+        let result_blocks = DUPLICATE.no;
+        let result_cols = DUPLICATE.no;
         const index = getBlockIndex(block);
         const lookup = sudoku_lookup[index];
         if (isSet(block)) {
-            if (isDuplicateGroup(blocks, block, index, sudoku_rows[lookup[0]]))
-                return true;
-            if (isDuplicateGroup(blocks, block, index, sudoku_blocks[lookup[1]]))
-                return true;
-            if (isDuplicateGroup(blocks, block, index, sudoku_cols[lookup[2]]))
-                return true;
+            result_rows = isDuplicateGroup(blocks, index, sudoku_rows[lookup[0]]);
+            result_blocks = isDuplicateGroup(blocks, index,
+                                             sudoku_blocks[lookup[1]]);
+            result_cols = (isDuplicateGroup(blocks, index, sudoku_cols[lookup[2]]));
         }
-        return false
+        return Math.max(result_rows, result_blocks, result_cols);
     }
 
     const checkCompleted = (sudoku_div_id) => {
@@ -253,33 +278,42 @@
         setBlockValue(block, new_value);
     }
 
-    const markDuplicateBlock = (block) => {
+    const markDuplicateBlock = (block, result) => {
         unmarkDuplicateBlock(block);
-        if (block.textContent.length == 1) {
-            if (isProtectedBlock(block)) {
-                block.classList.add('sudoku-duplicate-1-protected');
-            } else {
-                block.classList.add('sudoku-duplicate-1-unprotected');
-            }
-        } else {
-            block.classList.add('sudoku-duplicate-gt-1')
+        if (result === DUPLICATE.many_to_many) {
+            block.classList.add('sudoku-many-to-many');
+        } else if (result === DUPLICATE.many_to_one) {
+            block.classList.add('sudoku-many-to-one');
+        } else if (result === DUPLICATE.one_to_many) {
+            block.classList.add('sudoku-one-to-many');
+        } else if (result === DUPLICATE.one_to_one) {
+            block.classList.add('sudoku-one-to-one');
         }
     }
 
     const unmarkDuplicateBlock = (block) => {
-        block.classList.remove('sudoku-duplicate-1-protected')
-        block.classList.remove('sudoku-duplicate-1-unprotected')
-        block.classList.remove('sudoku-duplicate-gt-1')
+        block.classList.remove('sudoku-many-to-many');
+        block.classList.remove('sudoku-many-to-one');
+        block.classList.remove('sudoku-one-to-many');
+        block.classList.remove('sudoku-one-to-one');
     }
 
     const markAllDuplicateBlocks = (sudoku_div_id) => {
         const blocks = getBlocksByDivId(sudoku_div_id);
         for (let block of blocks) {
-            if (isDuplicateBlock(blocks, block)) {
-                markDuplicateBlock(block)
+            let result = isDuplicateBlock(blocks, block);
+            if (result) {
+                markDuplicateBlock(block, result)
             } else {
                 unmarkDuplicateBlock(block);
-            };
+            }
+        }
+    }
+
+    const unmarkAllDuplicateBlocks = (sudoku_div_id) => {
+        const blocks = getBlocksByDivId(sudoku_div_id);
+        for (let block of blocks) {
+            unmarkDuplicateBlock(block);
         }
     }
 
@@ -343,6 +377,7 @@
         let blocks = getBlocksByDivId(sudoku_div_id);
         for (let i = 0; i < blocks.length; i++) {
             setBlock(blocks[i], grid[i][0], grid[i][1]);
+            setFontSize(blocks[i]);
         }
     }
 
@@ -412,7 +447,7 @@
                     e.preventDefault();
                 }
             });
-            block.addEventListener('keyup', function(e) {
+            block.addEventListener('keyup', function() {
                 processBlock(sudoku_div_id, block);
             });
         }
@@ -436,21 +471,17 @@
         block.innerHTML = "&nbsp;";
     }
 
-    const clearBlockClues = (block) => {
-        block.classList.remove('sudoku-duplicate-1-protected');
-        block.classList.remove('sudoku-duplicate-1-unprotected');
-        block.classList.remove('sudoku-duplicate-gt-1');
-    }
-
     const toggleClues = (sudoku_div_id, btn) => {
         let div = document.getElementById(sudoku_div_id);
         if (div.classList.contains('sudoku-no-clues')) {
             div.classList.remove('sudoku-no-clues');
+            markAllDuplicateBlocks(sudoku_div_id);
             if (btn) {
                 btn.textContent = 'Clues off';
             }
         } else {
             div.classList.add('sudoku-no-clues');
+            unmarkAllDuplicateBlocks(sudoku_div_id);
             if (btn) {
                 btn.textContent = 'Clues on';
             }
@@ -463,13 +494,12 @@
             if (!isProtectedBlock(block)) {
                 clearBlockText(block);
             }
-            clearBlockClues(block);
+            unmarkDuplicateBlock(block);
         }
     };
 
     const findAndSetActiveBlock = (sudoku_div_id) => {
-        if (active_block) {
-        } else {
+        if (!active_block) {
             let blocks = getBlocksByDivId(sudoku_div_id);
             for (const block of blocks) {
                 if (block.classList.contains('sudoku-protected')) {
@@ -497,7 +527,7 @@
         findAndSetActiveBlock(sudoku_div_id);
         let restart_btn = sudoku_div.getElementsByClassName('sudoku-restart')[0];
         if (restart_btn) {
-            restart_btn.addEventListener('click', function(e) {
+            restart_btn.addEventListener('click', function() {
                 if (confirm('Are you sure you wish to restart')) {
                     clearGrid(sudoku_div);
                     saveGrid(sudoku_div_id);
@@ -640,21 +670,21 @@
         sudoku_div.innerHTML += innerhtml;
     }
 
-    const restartButtonHTML = (sudoku_div) => {
+    const restartButtonHTML = () => {
         return '<button class="sudoku-restart">Restart</button>';
     }
 
-    const cluesButtonHTML = (sudoku_div) => {
+    const cluesButtonHTML = () => {
         return '<button class="sudoku-clues">Clues off</button>';
     }
 
     const insertControlButtons = (sudoku_div, options) => {
         let innerhtml = '<p class="sudoku-control">';
         if (options.restart_button == true) {
-            innerhtml += restartButtonHTML(sudoku_div);
+            innerhtml += restartButtonHTML();
         }
         if (options.clues_button == true) {
-            innerhtml += cluesButtonHTML(sudoku_div);
+            innerhtml += cluesButtonHTML();
         }
         innerhtml += '</p>';
         sudoku_div.innerHTML += innerhtml;

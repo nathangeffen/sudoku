@@ -382,8 +382,9 @@ void print_result(const struct board_s *board)
     } else if (n == 1) {
         printf_c(ESSENTIAL, "Unique solution with depth %d\n",
                  board->depth);
-        if (verbose)
+        if (verbose) {
             print_puzzle(board->solutions[0]);
+        }
     } else if (n > 1) {
         printf_c(ESSENTIAL, "Multiple solutions\n");
         for (size_t j = 0; j < MAX_SOLUTIONS; j++) {
@@ -397,7 +398,17 @@ void print_result(const struct board_s *board)
 }
 
 void
-print_essential_output(struct board_s *board)
+print_grid(const grid_t grid) {
+    for (size_t i = 0; i < BOARD_SIZE; i++)
+        if (grid[i])
+            printf("%u", get_bit_index(grid[i]) + 1);
+        else
+            printf("0");
+    printf("\n");
+}
+
+void
+print_essential_output(const struct board_s *board)
 {
     int count = 0;
     for (size_t i = 0; i < BOARD_SIZE; i++)
@@ -407,13 +418,7 @@ print_essential_output(struct board_s *board)
     printf_c(ESSENTIAL, "Depth: %d\n", board->depth);
 
     printf_c(ESSENTIAL, "Puzzle: ", board->depth);
-
-    for (size_t i = 0; i < BOARD_SIZE; i++)
-        if (board->grid[i])
-            printf("%u", get_bit_index(board->grid[i]) + 1);
-        else
-            printf("0");
-    printf("\n");
+    print_grid(board->grid);
 }
 
 void
@@ -428,7 +433,7 @@ output_solution(grid_t grid, int max_depth)
     if (verbose)
         print_result(&board);
 
-    print_essential_output(&board);
+    print_grid(board.solutions[0]);
 }
 
 

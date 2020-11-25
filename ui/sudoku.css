@@ -19,7 +19,6 @@
     border-right: 1px solid black;
     border-bottom: 1px solid black;
     font-size: 1.2em;
-    font-weight: bold;
 }
 
 .sudoku-incomplete {
@@ -34,7 +33,7 @@
 }
 
 .sudoku-td-in-focus {
-    background-color: #ffffcc;
+    background-color: #ffffcc !important;
 }
 
 .sudoku-td-2, .sudoku-td-5, .sudoku-td-11, .sudoku-td-14, .sudoku-td-20,
@@ -59,6 +58,10 @@
 .sudoku-td-77, .sudoku-td-78, .sudoku-td-79, .sudoku-td-80
 { border-bottom: none !important; }
 
+
+.sudoku-in-scope {
+    background-color: #EEE;
+}
 
 .sudoku-table td.sudoku-font-2 {
     font-size: 85%;
@@ -94,7 +97,8 @@
 
 .sudoku-protected {
     font-size: 1.2em;
-    background-color: lightgray;
+    font-weight: bold;
+    color: black;
 }
 
 .sudoku-one-to-one {
@@ -116,6 +120,7 @@
 
 .sudoku-buttons {
     text-align: center;
+    margin: auto;
 }
 
 .sudoku-buttons button {
@@ -123,9 +128,9 @@
     height: 7vmin;
     margin-top: 12px;
     margin-bottom: 12px;
-    margin-right: 5px;
-    border: 2px solid black;
-    border-radius: 12px;
+    margin-right: 1px;
+    border: 1px solid black;
+    border-radius: 3px;
 }
 
 .sudoku-control {
@@ -141,4 +146,12 @@
 .sudoku-div button:hover {
     text-decoration: underline;
     cursor: pointer;
+}
+
+@media only screen and (max-width: 700px) {
+    .sudoku-buttons button {
+        width: 14vmin;
+        height: 14vmin;
+        margin-right: 5px;
+    }
 }

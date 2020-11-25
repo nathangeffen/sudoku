@@ -15,6 +15,7 @@
         <div id="sudoku-1"></div>
         <div id="sudoku-2"></div>
         <div id="sudoku-3"></div>
+        <div id="sudoku-4"></div>
         <script src="sudoku.js"></script>
         <script>
          "use strict";
@@ -22,11 +23,13 @@
          const easy = '400700090000400006020009080001008034072904510840300700030800040700001000090002005';
          const almost_solved = '458726193917483256623159487561278934372964518849315762235897641786541329194632800';
          Sudoku.create('sudoku-1', almost_solved, {try_load: true,
-                                                  clues_on: false,
-                                                  clues_button: false});
+                                                   clues_on: false,
+                                                   clues_button: false});
          Sudoku.create('sudoku-2', hard);
          Sudoku.create('sudoku-3',
-                       '926435871574681239831972645189743562453126798267598314395864127648217953712359480d');
+                       '926435871574681239831972645189743562453126798267598314395864127648217953712359480');
+         Sudoku.create('sudoku-4',
+                       '000000000000000000000000000000000000000000000000000000000000000000000000000000000');
         </script>
     </body>
 </html>

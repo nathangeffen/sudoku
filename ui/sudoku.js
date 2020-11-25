@@ -17,7 +17,7 @@
         [72, 73, 74, 75, 76, 77, 78, 79, 80 ]
     ];
 
-    const sudoku_blocks = [
+    const sudoku_squares = [
         [0, 1, 2,
          9, 10, 11,
          18, 19, 20],
@@ -85,11 +85,30 @@
         one_to_one: 4,
     }
 
-    let active_block = null;
+    let active_cell = null;
 
     ///////////////////////////
 
     // Functions with no side effects
+
+    const getMobileOS = () => {
+        var userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+        // Windows Phone must come first because its UA also contains "Android"
+        if (/windows phone/i.test(userAgent)) {
+            return "Windows Phone";
+        }
+
+        if (/android/i.test(userAgent)) {
+            return "Android";
+        }
+
+        // iOS detection from: http://stackoverflow.com/a/9039885/177710
+        if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+            return "iOS";
+        }
+        return "unknown";
+    }
 
     const convertPuzzleStr = (str) => {
         let arr = []
@@ -120,29 +139,29 @@
         return arr_sorted.join("");
     }
 
-    const getBlocksByTable = (sudoku_table) => {
+    const getCellsByTable = (sudoku_table) => {
         return sudoku_table.getElementsByTagName('td');
     }
 
-    const getBlocksByDiv = (sudoku_div) => {
-        return getBlocksByTable(sudoku_div.getElementsByTagName('table')[0]);
+    const getCellsByDiv = (sudoku_div) => {
+        return getCellsByTable(sudoku_div.getElementsByTagName('table')[0]);
     }
 
-    const getBlocksByDivId = (sudoku_div_id) => {
-        return getBlocksByDiv(document.getElementById(sudoku_div_id));
+    const getCellsByDivId = (sudoku_div_id) => {
+        return getCellsByDiv(document.getElementById(sudoku_div_id));
     }
 
-    const getBlockIndex = (block) => {
+    const getCellIndex = (cell) => {
         const class_prefix = "sudoku-td-"
-        for (const name of block.classList) {
+        for (const name of cell.classList) {
             if (name.includes(class_prefix)) {
                 return parseInt(name.substr(class_prefix.length));
             }
         }
     }
 
-    const getBlockValue = (block) => {
-        const value = block.textContent;
+    const getCellValue = (cell) => {
+        const value = cell.textContent;
         if (value.trim().length > 0) {
             return value;
         } else {
@@ -150,32 +169,32 @@
         }
     }
 
-    const isSet = (block) => {
-        if (getBlockValue(block) != "0") {
+    const isSet = (cell) => {
+        if (getCellValue(cell) != "0") {
             return true;
         } else {
             return false;
         }
     }
 
-    const digitIn = (block, digit) => {
-        if (block.textContent.includes(digit)) {
+    const digitIn = (cell, digit) => {
+        if (cell.textContent.includes(digit)) {
             return true;
         } else {
             return false;
         }
     }
 
-    const isDuplicateGroup = (blocks, index, group) => {
+    const isDuplicateGroup = (cells, index, group) => {
         let one_to_many = false;
         let many_to_many = false;
 
-        const val_1 = getBlockValue(blocks[index]);
+        const val_1 = getCellValue(cells[index]);
         if (val_1 == "0") return DUPLICATE.no;
 
         for (const i of group) {
-            const val_2 = getBlockValue(blocks[i]);
-            if (index === i || val_2 === "0") continue; // same block or cf. space
+            const val_2 = getCellValue(cells[i]);
+            if (index === i || val_2 === "0") continue; // same cell or cf. space
             if (val_1.length === 1) { // Check for one_to_one or one_to_many
                 if (val_1 === val_2) {
                     return DUPLICATE.one_to_one;
@@ -196,43 +215,43 @@
         return DUPLICATE.no;
     }
 
-    const isDuplicateBlock = (blocks, block) => {
+    const isDuplicateCell = (cells, cell) => {
         let result_rows = DUPLICATE.no;
-        let result_blocks = DUPLICATE.no;
+        let result_cells = DUPLICATE.no;
         let result_cols = DUPLICATE.no;
-        const index = getBlockIndex(block);
+        const index = getCellIndex(cell);
         const lookup = sudoku_lookup[index];
-        if (isSet(block)) {
-            result_rows = isDuplicateGroup(blocks, index, sudoku_rows[lookup[0]]);
-            result_blocks = isDuplicateGroup(blocks, index,
-                                             sudoku_blocks[lookup[1]]);
-            result_cols = (isDuplicateGroup(blocks, index, sudoku_cols[lookup[2]]));
+        if (isSet(cell)) {
+            result_rows = isDuplicateGroup(cells, index, sudoku_rows[lookup[0]]);
+            result_cells = isDuplicateGroup(cells, index,
+                                             sudoku_squares[lookup[1]]);
+            result_cols = (isDuplicateGroup(cells, index, sudoku_cols[lookup[2]]));
         }
-        return Math.max(result_rows, result_blocks, result_cols);
+        return Math.max(result_rows, result_cells, result_cols);
     }
 
-    const checkCompleted = (sudoku_div_id) => {
-        const blocks = getBlocksByDivId(sudoku_div_id);
-        for (const block of blocks) {
-            const val = getBlockValue(block);
+    Sudoku.checkCompleted = (sudoku_div_id) => {
+        const cells = getCellsByDivId(sudoku_div_id);
+        for (const cell of cells) {
+            const val = getCellValue(cell);
             if (val.length != 1  || val === "0" ||
-                isDuplicateBlock(blocks, block)) {
+                isDuplicateCell(cells, cell)) {
                 return false;
             }
         }
         return true;
     }
 
-    const isProtectedBlock = (block) => {
-        return block.classList.contains('sudoku-protected');
+    const isProtectedCell = (cell) => {
+        return cell.classList.contains('sudoku-protected');
     }
 
-    const getPuzzleString = (sudoku_div_id) => {
+    Sudoku.getPuzzleString = (sudoku_div_id) => {
         let str = "";
-        const blocks = getBlocksByDivId(sudoku_div_id);
-        for (const block of blocks) {
-            if (isProtectedBlock(block)) {
-                str += getBlockValue(block);
+        const cells = getCellsByDivId(sudoku_div_id);
+        for (const cell of cells) {
+            if (isProtectedCell(cell)) {
+                str += getCellValue(cell);
             } else {
                 str += "0";
             }
@@ -240,7 +259,33 @@
         return str;
     }
 
+    Sudoku.getCurrentPuzzleString = (sudoku_div_id) => {
+        let str = "";
+        const cells = getCellsByDivId(sudoku_div_id);
+        for (const cell of cells) {
+            const s = getCellValue(cell);
+            if (s.length != 1) {
+                str += "0";
+            } else {
+                str += s;
+            }
+        }
+        return str;
+    }
 
+    const getAffectedCells = (cells, cell) => {
+        let result = [];
+        const index = getCellIndex(cell);
+        const lookup = sudoku_lookup[index];
+        const indices = sudoku_rows[lookup[0]].concat(
+            sudoku_squares[lookup[1]]).concat(sudoku_cols[lookup[2]]);
+        for (let i = 0; i < cells.length; i++) {
+            if (indices.includes(i)) {
+                result.push(cells[i]);
+            }
+        }
+        return result;
+    }
 
     // Functions with side effects
 
@@ -255,66 +300,66 @@
         el.focus();
     }
 
-    const setBlockValue = (block, value) => {
+    const setCellValue = (cell, value) => {
         if (value === (" ") || value === "0" || value === "&nbsp;") {
-            block.innerHTML = "&nbsp;";
+            cell.innerHTML = "&nbsp;";
         } else {
             const v = sortStr(filterDigits(value));
             if (v.length > 0) {
-                block.textContent = v;
+                cell.textContent = v;
             } else {
-                block.innerHTML = "&nbsp;";
+                cell.innerHTML = "&nbsp;";
             }
         }
     }
 
-    const removeBlockDigit = (block, digit) => {
-        let value = block.textContent;
+    const removeCellDigit = (cell, digit) => {
+        let value = cell.textContent;
         let new_value = "";
         for (let i = 0; i < value.length; i++) {
             if (value[i] != digit) {
                 new_value += value[i];
             }
         }
-        setBlockValue(block, new_value);
+        setCellValue(cell, new_value);
     }
 
-    const markDuplicateBlock = (block, result) => {
-        unmarkDuplicateBlock(block);
+    const markDuplicateCell = (cell, result) => {
+        unmarkDuplicateCell(cell);
         if (result === DUPLICATE.many_to_many) {
-            block.classList.add('sudoku-many-to-many');
+            cell.classList.add('sudoku-many-to-many');
         } else if (result === DUPLICATE.many_to_one) {
-            block.classList.add('sudoku-many-to-one');
+            cell.classList.add('sudoku-many-to-one');
         } else if (result === DUPLICATE.one_to_many) {
-            block.classList.add('sudoku-one-to-many');
+            cell.classList.add('sudoku-one-to-many');
         } else if (result === DUPLICATE.one_to_one) {
-            block.classList.add('sudoku-one-to-one');
+            cell.classList.add('sudoku-one-to-one');
         }
     }
 
-    const unmarkDuplicateBlock = (block) => {
-        block.classList.remove('sudoku-many-to-many');
-        block.classList.remove('sudoku-many-to-one');
-        block.classList.remove('sudoku-one-to-many');
-        block.classList.remove('sudoku-one-to-one');
+    const unmarkDuplicateCell = (cell) => {
+        cell.classList.remove('sudoku-many-to-many');
+        cell.classList.remove('sudoku-many-to-one');
+        cell.classList.remove('sudoku-one-to-many');
+        cell.classList.remove('sudoku-one-to-one');
     }
 
-    const markAllDuplicateBlocks = (sudoku_div_id) => {
-        const blocks = getBlocksByDivId(sudoku_div_id);
-        for (let block of blocks) {
-            let result = isDuplicateBlock(blocks, block);
+    const markAllDuplicateCells = (sudoku_div_id) => {
+        const cells = getCellsByDivId(sudoku_div_id);
+        for (let cell of cells) {
+            let result = isDuplicateCell(cells, cell);
             if (result) {
-                markDuplicateBlock(block, result)
+                markDuplicateCell(cell, result)
             } else {
-                unmarkDuplicateBlock(block);
+                unmarkDuplicateCell(cell);
             }
         }
     }
 
-    const unmarkAllDuplicateBlocks = (sudoku_div_id) => {
-        const blocks = getBlocksByDivId(sudoku_div_id);
-        for (let block of blocks) {
-            unmarkDuplicateBlock(block);
+    const unmarkAllDuplicateCells = (sudoku_div_id) => {
+        const cells = getCellsByDivId(sudoku_div_id);
+        for (let cell of cells) {
+            unmarkDuplicateCell(cell);
         }
     }
 
@@ -341,7 +386,7 @@
     }
 
     const showIfCompleted = (sudoku_div_id) => {
-        if (checkCompleted(sudoku_div_id)) {
+        if (Sudoku.checkCompleted(sudoku_div_id)) {
             markCompleted(sudoku_div_id);
         } else {
             unmarkCompleted(sudoku_div_id);
@@ -349,97 +394,117 @@
     }
 
     const saveGrid = (sudoku_div_id) => {
-        const key = getPuzzleString(sudoku_div_id);
-        const blocks = getBlocksByDivId(sudoku_div_id);
-        let block_array = [];
-        for (const block of blocks) {
-            if (isProtectedBlock(block)) {
-                block_array.push([block.textContent, true])
+        const key = Sudoku.getPuzzleString(sudoku_div_id);
+        const cells = getCellsByDivId(sudoku_div_id);
+        let cell_array = [];
+        for (const cell of cells) {
+            if (isProtectedCell(cell)) {
+                cell_array.push([cell.textContent, true])
             } else {
-                block_array.push([block.textContent, false])
+                cell_array.push([cell.textContent, false])
             }
         }
         localStorage.setItem(sudoku_prefix + key,
-                             JSON.stringify(block_array));
+                             JSON.stringify(cell_array));
     }
 
-    const setBlock = (block, value, protect = false) => {
-        setBlockValue(block, value);
+    const setCell = (cell, value, protect = false) => {
+        setCellValue(cell, value);
         if (protect) {
-            block.classList.add('sudoku-protected');
-            block.contentEditable = false;
+            cell.classList.add('sudoku-protected');
+            cell.contentEditable = false;
         } else {
-            block.classList.remove('sudoku-protected');
-            block.contentEditable = true;
+            cell.classList.remove('sudoku-protected');
+            cell.contentEditable = true;
         }
     }
 
     const setGrid = (sudoku_div_id, grid) => {
-        let blocks = getBlocksByDivId(sudoku_div_id);
-        for (let i = 0; i < blocks.length; i++) {
-            setBlock(blocks[i], grid[i][0], grid[i][1]);
-            setFontSize(blocks[i]);
+        let cells = getCellsByDivId(sudoku_div_id);
+        for (let i = 0; i < cells.length; i++) {
+            setCell(cells[i], grid[i][0], grid[i][1]);
+            setFontSize(cells[i]);
         }
     }
 
     const loadGrid = (sudoku_div_id_from, sudoku_div_id_to) => {
-        const key = getPuzzleString(sudoku_div_id_from);
+        const key = Sudoku.getPuzzleString(sudoku_div_id_from);
         const grid = JSON.parse(localStorage.getItem(sudoku_prefix + key));
         if (grid) {
             setGrid(sudoku_div_id_to, grid);
         } else {
             return false;
         }
-        markAllDuplicateBlocks(sudoku_div_id_to);
+        markAllDuplicateCells(sudoku_div_id_to);
         return true;
     }
 
-    const setActiveBlock = (block) => {
-        if (active_block) {
-            active_block.classList.remove('sudoku-td-in-focus');
+    const setActiveCell = (sudoku_div_id, cell) => {
+        if (active_cell) {
+            active_cell.classList.remove('sudoku-td-in-focus');
         }
-        active_block = block;
-        active_block.focus();
-        block.classList.add('sudoku-td-in-focus');
+        active_cell = cell;
+        active_cell.focus();
+        cell.classList.add('sudoku-td-in-focus');
+        highlightAffectedCells(sudoku_div_id, cell);
     }
 
-    const setFontSize = (block) => {
-        block.classList.remove('sudoku-font-1', 'sudoku-font-2',
+    const setFontSize = (cell) => {
+        cell.classList.remove('sudoku-font-1', 'sudoku-font-2',
                                'sudoku-font-3', 'sudoku-font-4',
                                'sudoku-font-5', 'sudoku-font-6',
                                'sudoku-font-7', 'sudoku-font-8',
                                'sudoku-font-9');
-        const l = block.textContent.length;
+        const l = cell.textContent.length;
         const className = 'sudoku-font-' + l.toString();
-        block.classList.add(className);
+        cell.classList.add(className);
     }
 
-    const processBlock = (sudoku_div_id, block) => {
-        markAllDuplicateBlocks(sudoku_div_id);
+    const highlightAffectedCells = (sudoku_div_id, cell) => {
+        const cells = getCellsByDivId(sudoku_div_id);
+        for (let c of cells) {
+            c.classList.remove('sudoku-in-scope');
+        }
+        let selected = getAffectedCells(cells, cell);
+        for (let c of selected) {
+            c.classList.add('sudoku-in-scope');
+        }
+    }
+
+    const processCell = (sudoku_div_id, cell) => {
+        markAllDuplicateCells(sudoku_div_id);
         saveGrid(sudoku_div_id);
         showIfCompleted(sudoku_div_id);
-        setFontSize(block);
+        setFontSize(cell);
     }
 
-    const processInput = (sudoku_div_id, block, value) => {
+    const processInput = (sudoku_div_id, cell, value) => {
         if (value === '\xa0' || value === " " || value === "0") {
-            setBlockValue(block, "0");
-        } else if (digitIn(block, value)) {
-            removeBlockDigit(block, value);
+            setCellValue(cell, "0");
+        } else if (digitIn(cell, value)) {
+            removeCellDigit(cell, value);
         } else {
-            setBlockValue(block, block.textContent + value);
+            setCellValue(cell, cell.textContent + value);
         }
-        block.focus();
-        placeCursorAtEnd(block);
+        cell.focus();
+        placeCursorAtEnd(cell);
     }
 
     const setupTable = (sudoku_div_id, sudoku_table) => {
-        let blocks = sudoku_table.getElementsByTagName('td');
-        for (const block of blocks) {
-            block.addEventListener("focus", function(e) {
-                setActiveBlock(e.target);
+        let cells = sudoku_table.getElementsByTagName('td');
+        let blurCells = false;
+        const os = getMobileOS();
+        if (os === "Android" || os === "iOS") blurCells = true;
+        for (let cell of cells) {
+            if (blurCells) {
+                cell.addEventListener("focus", function(e) {
+                    cell.blur();
+                });
+            }
+            cell.addEventListener("focus", function(e) {
+                setActiveCell(sudoku_div_id, e.target);
             });
-            block.addEventListener('keydown', function(e) {
+            cell.addEventListener('keydown', function(e) {
                 const c = String.fromCharCode(e.keyCode);
                 if (' 0123456789'.includes(c)) {
                     processInput(sudoku_div_id, e.target, c);
@@ -448,8 +513,8 @@
                     e.preventDefault();
                 }
             });
-            block.addEventListener('keyup', function() {
-                processBlock(sudoku_div_id, block);
+            cell.addEventListener('keyup', function() {
+                processCell(sudoku_div_id, cell);
             });
         }
     }
@@ -460,29 +525,29 @@
         for (const digit of digits) {
             digit.addEventListener("click", function(e) {
                 e.preventDefault();
-                if (active_block && sudoku_div.contains(active_block)) {
-                    processInput(sudoku_div_id, active_block, e.target.textContent);
-                    processBlock(sudoku_div_id, active_block);
+                if (active_cell && sudoku_div.contains(active_cell)) {
+                    processInput(sudoku_div_id, active_cell, e.target.textContent);
+                    processCell(sudoku_div_id, active_cell);
                 }
             });
         }
     }
 
-    const clearBlockText = (block) => {
-        block.innerHTML = "&nbsp;";
+    const clearCellText = (cell) => {
+        cell.innerHTML = "&nbsp;";
     }
 
     const toggleClues = (sudoku_div_id, btn) => {
         let div = document.getElementById(sudoku_div_id);
         if (div.classList.contains('sudoku-no-clues')) {
             div.classList.remove('sudoku-no-clues');
-            markAllDuplicateBlocks(sudoku_div_id);
+            markAllDuplicateCells(sudoku_div_id);
             if (btn) {
                 btn.textContent = 'Clues off';
             }
         } else {
             div.classList.add('sudoku-no-clues');
-            unmarkAllDuplicateBlocks(sudoku_div_id);
+            unmarkAllDuplicateCells(sudoku_div_id);
             if (btn) {
                 btn.textContent = 'Clues on';
             }
@@ -490,25 +555,25 @@
     }
 
     const clearGrid = (sudoku_div) => {
-        let blocks = getBlocksByDiv(sudoku_div);
-        for (let block of blocks) {
-            if (!isProtectedBlock(block)) {
-                clearBlockText(block);
+        let cells = getCellsByDiv(sudoku_div);
+        for (let cell of cells) {
+            if (!isProtectedCell(cell)) {
+                clearCellText(cell);
             }
-            unmarkDuplicateBlock(block);
+            unmarkDuplicateCell(cell);
         }
     };
 
-    const findAndSetActiveBlock = (sudoku_div_id) => {
-        if (!active_block) {
-            let blocks = getBlocksByDivId(sudoku_div_id);
-            for (const block of blocks) {
-                if (block.classList.contains('sudoku-protected')) {
+    const findAndSetActiveCell = (sudoku_div_id) => {
+        if (!active_cell) {
+            let cells = getCellsByDivId(sudoku_div_id);
+            for (const cell of cells) {
+                if (cell.classList.contains('sudoku-protected')) {
                     continue;
                 } else {
-                    setActiveBlock(block);
-                    processBlock(sudoku_div_id, block);
-                    placeCursorAtEnd(block);
+                    setActiveCell(sudoku_div_id, cell);
+                    processCell(sudoku_div_id, cell);
+                    //placeCursorAtEnd(cell);
                     return;
                 }
             }
@@ -525,7 +590,7 @@
         if (options.try_load) {
             loadGrid(sudoku_div_id, sudoku_div_id);
         }
-        findAndSetActiveBlock(sudoku_div_id);
+        findAndSetActiveCell(sudoku_div_id);
         let restart_btn = sudoku_div.getElementsByClassName('sudoku-restart')[0];
         if (restart_btn) {
             restart_btn.addEventListener('click', function() {
@@ -545,7 +610,6 @@
             toggleClues(sudoku_div_id, clues_btn);
         }
     }
-
 
     const insertTable = (sudoku_div) => {
         const innerhtml = '<p class="sudoku-incomplete">Puzzle completed</p> ' +

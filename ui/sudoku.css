@@ -118,6 +118,14 @@
     font-weight: bold;*/
 }
 
+.sudoku-note {
+    font-size: 60% !important;
+    text-align: right !important;
+    padding-right: 2px !important;
+    padding-bottom: 2px !important;
+    vertical-align: bottom;
+}
+
 .sudoku-equal-digit {
     text-decoration: underline;
 }

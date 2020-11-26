@@ -561,19 +561,19 @@
         cell.innerHTML = "&nbsp;";
     }
 
-    const toggleClues = (sudoku_div_id, btn) => {
+    const toggleColors = (sudoku_div_id, btn) => {
         let div = document.getElementById(sudoku_div_id);
-        if (div.classList.contains('sudoku-no-clues')) {
-            div.classList.remove('sudoku-no-clues');
+        if (div.classList.contains('sudoku-no-colors')) {
+            div.classList.remove('sudoku-no-colors');
             markAllDuplicateCells(sudoku_div_id);
             if (btn) {
-                btn.textContent = 'Clues off';
+                btn.textContent = 'Colors off';
             }
         } else {
-            div.classList.add('sudoku-no-clues');
+            div.classList.add('sudoku-no-colors');
             unmarkAllDuplicateCells(sudoku_div_id);
             if (btn) {
-                btn.textContent = 'Clues on';
+                btn.textContent = 'Colors on';
             }
         }
     }
@@ -624,14 +624,22 @@
                 }
             });
         }
-        let clues_btn = sudoku_div.getElementsByClassName('sudoku-clues')[0];
-        if (clues_btn) {
-            clues_btn.addEventListener('click', function(e) {
-                toggleClues(sudoku_div_id, e.target);
+        let colors_btn = sudoku_div.getElementsByClassName('sudoku-colors')[0];
+        if (colors_btn) {
+            colors_btn.addEventListener('click', function(e) {
+                toggleColors(sudoku_div_id, e.target);
             });
         }
-        if (options.clues_on == false) {
-            toggleClues(sudoku_div_id, clues_btn);
+        if (options.colors_on == false) {
+            toggleColors(sudoku_div_id, colors_btn);
+        }
+        let note_btn = sudoku_div.getElementsByClassName('sudoku-note-btn')[0];
+        if (note_btn) {
+            note_btn.addEventListener('click', function(e) {
+                if (active_cell && sudoku_div.contains(active_cell)) {
+                    active_cell.classList.toggle('sudoku-note');
+                }
+            });
         }
     }
 
@@ -741,11 +749,10 @@
         sudoku_div.innerHTML += innerhtml;
     }
 
-
     const insertDigitButtons = (sudoku_div) => {
         const innerhtml =
               '<p class="sudoku-buttons"> '+
-              '<button class="sudoku-btn sudoku-btn-0" value="0"><img src="eraser.svg" alt="eraser"/></button> ' +
+              '<button class="sudoku-btn sudoku-btn-0" value="0">X</button> ' +
               '<button class="sudoku-btn sudoku-btn-1" value="1">1</button> ' +
               '<button class="sudoku-btn sudoku-btn-2" value="2">2</button> ' +
               '<button class="sudoku-btn sudoku-btn-3" value="3">3</button> ' +
@@ -763,8 +770,12 @@
         return '<button class="sudoku-restart">Restart</button>';
     }
 
-    const cluesButtonHTML = () => {
-        return '<button class="sudoku-clues">Clues off</button>';
+    const colorsButtonHTML = () => {
+        return '<button class="sudoku-colors">Colors off</button>';
+    }
+
+    const noteButtonHTML = () => {
+        return '<button class="sudoku-note-btn">Note</button>';
     }
 
     const insertControlButtons = (sudoku_div, options) => {
@@ -772,8 +783,11 @@
         if (options.restart_button == true) {
             innerhtml += restartButtonHTML();
         }
-        if (options.clues_button == true) {
-            innerhtml += cluesButtonHTML();
+        if (options.colors_button == true) {
+            innerhtml += colorsButtonHTML();
+        }
+        if (options.note_button == true) {
+            innerhtml += noteButtonHTML();
         }
         innerhtml += '</p>';
         sudoku_div.innerHTML += innerhtml;
@@ -790,10 +804,11 @@
     Sudoku.create = (sudoku_div_id, puzzle_str, options = {}) => {
         let default_options = {
             try_load: true,
-            clues_on: true,
+            colors_on: true,
             digit_buttons: true,
             restart_button: true,
-            clues_button: true
+            colors_button: true,
+            note_button: true
         };
         for (let [key, value] of Object.entries(options)) {
             if (key in default_options) {

@@ -424,6 +424,11 @@
         for (let i = 0; i < cells.length; i++) {
             setCell(cells[i], grid[i][0], grid[i][1]);
             setFontSize(cells[i]);
+            if (cells[i].classList.contains('sudoku-protected')) {
+                cells[i].addEventListener('click', function() {
+                    highlightEqualDigits(sudoku_div_id, cells[i], true);
+                });
+            }
         }
     }
 
@@ -447,6 +452,7 @@
         active_cell.focus();
         cell.classList.add('sudoku-td-in-focus');
         highlightAffectedCells(sudoku_div_id, cell);
+        highlightEqualDigits(sudoku_div_id, cell);
     }
 
     const setFontSize = (cell) => {
@@ -471,11 +477,27 @@
         }
     }
 
+    const highlightEqualDigits = (sudoku_div_id, cell, samecell=false) => {
+        const cells = getCellsByDivId(sudoku_div_id);
+        for (let c of cells) {
+            if (cell.textContent.length === 1 &&
+                cell.textContent >= '1' &&
+                cell.textContent <= '9' &&
+                c.textContent === cell.textContent &&
+                (samecell == true || c != cell)) {
+                c.classList.add('sudoku-equal-digit');
+            } else {
+                c.classList.remove('sudoku-equal-digit');
+            }
+        }
+    }
+
     const processCell = (sudoku_div_id, cell) => {
         markAllDuplicateCells(sudoku_div_id);
         saveGrid(sudoku_div_id);
         showIfCompleted(sudoku_div_id);
         setFontSize(cell);
+        highlightEqualDigits(sudoku_div_id, cell);
     }
 
     const processInput = (sudoku_div_id, cell, value) => {
@@ -487,6 +509,7 @@
             setCellValue(cell, cell.textContent + value);
         }
         cell.focus();
+        highlightEqualDigits(sudoku_div_id, cell);
         placeCursorAtEnd(cell);
     }
 
@@ -509,15 +532,16 @@
                 if (' 0123456789'.includes(c)) {
                     processInput(sudoku_div_id, e.target, c);
                     e.preventDefault();
-                } else if (![8, 9, 17, 35, 36, 37, 39, 46].includes(e.keyCode)) {
-                    e.preventDefault();
-                }
+            } else if (![8, 9, 17, 35, 36, 37, 39, 46].includes(e.keyCode)) {
+                e.preventDefault();
+            }
             });
             cell.addEventListener('keyup', function() {
                 processCell(sudoku_div_id, cell);
             });
         }
     }
+
 
     const setupDigits = (sudoku_div_id) => {
         let sudoku_div = document.getElementById(sudoku_div_id);
@@ -526,7 +550,7 @@
             digit.addEventListener("click", function(e) {
                 e.preventDefault();
                 if (active_cell && sudoku_div.contains(active_cell)) {
-                    processInput(sudoku_div_id, active_cell, e.target.textContent);
+                    processInput(sudoku_div_id, active_cell, e.target.value);
                     processCell(sudoku_div_id, active_cell);
                 }
             });
@@ -721,16 +745,16 @@
     const insertDigitButtons = (sudoku_div) => {
         const innerhtml =
               '<p class="sudoku-buttons"> '+
-              '<button class="sudoku-btn sudoku-btn-0">&nbsp;</button> '+
-              '<button class="sudoku-btn sudoku-btn-1">1</button> '+
-              '<button class="sudoku-btn sudoku-btn-2">2</button> '+
-              '<button class="sudoku-btn sudoku-btn-3">3</button> '+
-              '<button class="sudoku-btn sudoku-btn-4">4</button> '+
-              '<button class="sudoku-btn sudoku-btn-5">5</button> '+
-              '<button class="sudoku-btn sudoku-btn-6">6</button> '+
-              '<button class="sudoku-btn sudoku-btn-7">7</button> '+
-              '<button class="sudoku-btn sudoku-btn-8">8</button> '+
-              '<button class="sudoku-btn sudoku-btn-9">9</button> '+
+              '<button class="sudoku-btn sudoku-btn-0" value="0"><img src="eraser.svg" alt="eraser"/></button> ' +
+              '<button class="sudoku-btn sudoku-btn-1" value="1">1</button> ' +
+              '<button class="sudoku-btn sudoku-btn-2" value="2">2</button> ' +
+              '<button class="sudoku-btn sudoku-btn-3" value="3">3</button> ' +
+              '<button class="sudoku-btn sudoku-btn-4" value="4">4</button> ' +
+              '<button class="sudoku-btn sudoku-btn-5" value="5">5</button> ' +
+              '<button class="sudoku-btn sudoku-btn-6" value="6">6</button> ' +
+              '<button class="sudoku-btn sudoku-btn-7" value="7">7</button> ' +
+              '<button class="sudoku-btn sudoku-btn-8" value="8">8</button> ' +
+              '<button class="sudoku-btn sudoku-btn-9" value="9">9</button> ' +
               '</p> ';
         sudoku_div.innerHTML += innerhtml;
     }

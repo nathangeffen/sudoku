@@ -118,9 +118,18 @@
     font-weight: bold;*/
 }
 
+.sudoku-equal-digit {
+    text-decoration: underline;
+}
+
 .sudoku-buttons {
     text-align: center;
     margin: auto;
+}
+
+/* This is necessary to prevent an image inside the button being captured. */
+.sudoku-buttons button > * {
+  pointer-events: none;
 }
 
 .sudoku-buttons button {

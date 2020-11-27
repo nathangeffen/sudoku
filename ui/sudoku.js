@@ -641,6 +641,25 @@
                 }
             });
         }
+        let load_btn = sudoku_div.getElementsByClassName('sudoku-load-btn')[0];
+        if (load_btn) {
+            load_btn.addEventListener('click', function(e) {
+                let puzzle_str = sudoku_div.getElementsByClassName(
+                    'sudoku-load-input')[0].value;
+                if (puzzle_str.length != 81) {
+                    alert("Puzzle needs to be exactly 81 digits");
+                    return;
+                }
+                for (let i = 0; i < puzzle_str.length; i++) {
+                    if (!"0123456789".includes(puzzle_str[i])) {
+                        alert("Only digits allowed in puzzle");
+                        return;
+                    }
+                }
+                const grid = convertPuzzleStr(puzzle_str);
+                setGrid(sudoku_div_id, grid);
+            });
+        }
     }
 
     const insertTable = (sudoku_div) => {
@@ -778,16 +797,26 @@
         return '<button class="sudoku-note-btn">Note</button>';
     }
 
+    const loadFormHTML = () => {
+        const html = '<button class="sudoku-load-btn">Load</button>' +
+              '<input class="sudoku-load-input"' +
+              'type="text" minlength="81" maxlength="81">';
+        return html;
+    }
+
     const insertControlButtons = (sudoku_div, options) => {
         let innerhtml = '<p class="sudoku-control">';
-        if (options.restart_button == true) {
+        if (options.restart_button === true) {
             innerhtml += restartButtonHTML();
         }
-        if (options.colors_button == true) {
+        if (options.colors_button === true) {
             innerhtml += colorsButtonHTML();
         }
-        if (options.note_button == true) {
+        if (options.note_button === true) {
             innerhtml += noteButtonHTML();
+        }
+        if (options.load_form === true) {
+            innerhtml += loadFormHTML();
         }
         innerhtml += '</p>';
         sudoku_div.innerHTML += innerhtml;
@@ -808,7 +837,8 @@
             digit_buttons: true,
             restart_button: true,
             colors_button: true,
-            note_button: true
+            note_button: true,
+            load_form: false
         };
         for (let [key, value] of Object.entries(options)) {
             if (key in default_options) {

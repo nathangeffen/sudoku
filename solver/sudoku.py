@@ -1,6 +1,7 @@
 import random
 from operator import add
 import time
+import sys
 
 ROWS = [
     [0,   1,  2,  3,  4,  5,  6,  7,  8 ],
@@ -72,6 +73,9 @@ LOOKUP = [
     [8, 6, 0], [8, 6, 1], [8, 6, 2], [8, 7, 3], [8, 7, 4], [8, 7, 5],
     [8, 8, 6], [8, 8, 7], [8, 8, 8]
 ]
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 def is_good_partial(board):
     for i in range(len(board)):
@@ -326,11 +330,6 @@ def calc_avg(board=None, iterations=100):
     print("Time taken:", t2 - t1)
     return results
 
-891610044825600
-128391846454886400
-8024490403430400
-15508318382456832
-
 def check_results(results):
     # check for failures
     failures = [r for r in results if r[0] is None]
@@ -349,25 +348,25 @@ def check_results(results):
     if len(dups) > 0:
         print("Duplicates", len(dups))
 
-def find_solutions(board):
+def find_solutions(board, max_solutions=2):
     solutions = []
     possibles = get_all_possibles(board)
     lengths = sorted([(len(p[1]), p[0], p[1]) for p in possibles])
     cell = lengths[0][1]
-    for i in range(len(lengths[0][2])):
-        board_new = board.copy()
-        val = lengths[0][2][i]
-        board_new[cell] = val
-        solution = make_complete(board_new)[0]
-        if solution:
-            solutions.append(solution)
-        if len(solutions) > 1:
-            break
+    for p in possibles:
+        for val in p[1]:
+            board_new = board.copy()
+            board_new[cell] = val
+            solution = make_complete(board_new)[0]
+            if solution and (len(solutions) == 0 or solution != solutions[0]):
+                solutions.append(solution)
+            if len(solutions) == max_solutions:
+                return solutions
 
     return solutions
 
 
-def make_easy_puzzle(symmetrical=True, max_removals=55, min_ones=2):
+def make_puzzle(symmetrical=True, max_removals=55, min_ones=2, simple=True):
     board = make_complete()[0]
     if symmetrical:
         removals = list(range(41))
@@ -376,10 +375,8 @@ def make_easy_puzzle(symmetrical=True, max_removals=55, min_ones=2):
     random.shuffle(removals)
 
     board_copy = board.copy()
-    print_board(board_copy)
     for r in removals:
         prev = board_copy.copy()
-        print(r)
         board_copy[r] = 0
         if symmetrical and r != 40:
             board_copy[80 - r] = 0
@@ -389,9 +386,27 @@ def make_easy_puzzle(symmetrical=True, max_removals=55, min_ones=2):
         num_blanks = len([c for c in board_copy if c==0])
         if num_blanks > max_removals:
             break
-        if num_blanks > 20:
+        if num_blanks > min_ones:
             if len([p for p in possibles if len(p[1]) == 1]) < min_ones:
                 break
+            if len(find_solutions(board_copy)) > 1:
+                break;
 
+    if simple:
+        return prev
+    else:
+        if len(find_solutions(board_copy)) == 1:
+            return board_copy
+        else:
+            eprint("Using simpler because harder has duplicate")
+            return prev
 
-    return prev
+def num_filled_in(board):
+    return len([b for b in board if b != 0])
+
+def board_to_str(board):
+    return "".join([str(p) for p in board])
+
+def str_to_board(s):
+    board = list(s)
+    return [int(b) for b in board]

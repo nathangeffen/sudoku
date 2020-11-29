@@ -135,12 +135,12 @@
 }
 
 .sudoku-control {
-    line-height: 2em;
-    font-family: "Lucida Console", Courier, monospace;
+    line-height: 2.5em;
 }
 
 .sudoku-control button {
     height: 33px;
+    font-size: 0.85em;
 }
 
 /* This is necessary to prevent an image inside the button being captured. */
@@ -185,14 +185,19 @@
     margin-left: 6px;
 }
 
+.sudoku-stopwatch-box {
+    text-align: center;
+}
+
 .sudoku-stopwatch {
-    margin: 6px;
-    padding: 6px;
-    font-size: .9em;
+    margin: 3px auto 3px auto;
+    display: inline-block;
+    padding: 3px;
     color: #555;
     border: 1px solid #888;
-    border-radius: 3px;
-    vertical-align: top;
+    border-radius: 6px;
+    text-align: center;
+    height: 28px;
 }
 
 .sudoku-pause {

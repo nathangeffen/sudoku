@@ -102,7 +102,7 @@
 
         // Windows Phone must come first because its UA also contains "Android"
         if (/windows phone/i.test(userAgent)) {
-            return "Windows Phone";
+            return "Winphone";
         }
 
         if (/android/i.test(userAgent)) {
@@ -123,6 +123,13 @@
             return "iOS";
         }
         return "unknown";
+    }
+
+
+    const isMobile = () => {
+        const os = getMobileOS();
+        if (os === 'Android' || os === 'iOS' || os === "Winphone") return true;
+        return false;
     }
 
     const isSmallHeight = () => {
@@ -495,7 +502,7 @@
             cell.contentEditable = false;
         } else {
             cell.classList.remove('sudoku-protected');
-            if (!isSmallHeight()) {
+            if (!isMobile()) {
                 cell.contentEditable = true;
             }
         }
@@ -620,7 +627,7 @@
     const setupTable = (sudoku_div_id) => {
         let cells = getCellsByDivId(sudoku_div_id);
         let nokeyboard = false;
-        if (isSmallHeight()) {
+        if (isMobile()) {
             nokeyboard = true;
         }
         for (let cell of cells) {
@@ -948,20 +955,20 @@
     }
 
     const restartButtonHTML = () => {
-        return '<button class="sudoku-restart" title="Restart">⏻</button>';
+        return '<button class="sudoku-restart" title="Clear board and restart">Clear</button>';
     }
 
     const colorsButtonHTML = () => {
-        return '<button class="sudoku-colors" title="Toggle warnings">⚠</button>';
+        return '<button class="sudoku-colors" title="Toggle warnings">Warn</button>';
     }
 
     const noteButtonHTML = () => {
-        return '<button class="sudoku-note-btn" title="Note">🖊</button>';
+        return '<button class="sudoku-note-btn" title="Note">Note</button>';
     }
 
     const undoButtonHTML = () => {
-        const html =  '<button class="sudoku-undo-btn" title="Undo">↺</button>' +
-              '<button class="sudoku-redo-btn" title="Redo">↻</button>';
+        const html =  '<button class="sudoku-undo-btn" title="Undo">Undo</button>' +
+              '<button class="sudoku-redo-btn" title="Redo">Redo</button>';
         return html;
     }
 
@@ -998,6 +1005,7 @@
         if (options.load_form === true) {
             innerhtml += loadFormHTML();
         }
+        innerhtml += '</p><p class="sudoku-stopwatch-box">';
         if (options.stop_watch === true) {
             innerhtml += stopWatchHTML();
         }

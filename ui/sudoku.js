@@ -87,6 +87,12 @@
 
     let active_cell = null;
 
+    let undo_stacks = {};
+    let redo_stacks = {};
+
+    let start_time = new Date();
+    let additional_ms = 0;
+
     ///////////////////////////
 
     // Functions with no side effects
@@ -103,11 +109,33 @@
             return "Android";
         }
 
-        // iOS detection from: http://stackoverflow.com/a/9039885/177710
-        if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+        // iOS detection
+        // https://stackoverflow.com/questions/9038625/detect-if-device-is-ios#9039885
+        if ([
+            'iPad Simulator',
+            'iPhone Simulator',
+            'iPod Simulator',
+            'iPad',
+            'iPhone',
+            'iPod'].includes(navigator.platform)
+            // iPad on iOS 13 detection
+            || (navigator.userAgent.includes("Mac") && "ontouchend" in document)) {
             return "iOS";
         }
         return "unknown";
+    }
+
+    const isSmallHeight = () => {
+        if (screen.height < 768) return true;
+        return false;
+    }
+
+    const twoDigits = (val) => {
+        let res = val.toString();
+        if (res.length < 2) {
+            res = "0" + res;
+        }
+        return res;
     }
 
     const convertPuzzleStr = (str) => {
@@ -300,6 +328,51 @@
         el.focus();
     }
 
+    const saveUndo = (sudoku_div_id, cell, undo_redo='u') => {
+        let note = 0;
+        if (!(sudoku_div_id in undo_stacks)) {
+            undo_stacks[sudoku_div_id] = [];
+            redo_stacks[sudoku_div_id] = [];
+        }
+        if (cell.classList.contains('sudoku-note')) note = 1;
+        if (undo_redo === 'u') {
+            undo_stacks[sudoku_div_id].push([getCellIndex(cell),
+                                             cell.textContent, note]);
+        } else {
+            redo_stacks[sudoku_div_id].push([getCellIndex(cell),
+                                             cell.textContent, note]);
+        }
+    }
+
+    const undo = (sudoku_div_id, undo_redo='u') => {
+        let stacks;
+        if (undo_redo === 'u') {
+            stacks = undo_stacks;
+        } else {
+            stacks = redo_stacks;
+        }
+
+        if (sudoku_div_id in stacks && stacks[sudoku_div_id].length > 0) {
+            let cells = getCellsByDivId(sudoku_div_id);
+            const info = stacks[sudoku_div_id].pop();
+            if (undo_redo === 'u') {
+                undo_redo = 'r';
+            } else {
+                undo_redo = 'u';
+            }
+            saveUndo(sudoku_div_id, cells[info[0]], undo_redo);
+
+            cells[info[0]].textContent = info[1];
+            if (info[2]) {
+                cells[info[0]].classList.add('sudoku-note');
+            } else {
+                cells[info[0]].classList.remove('sudoku-note');
+            }
+            setActiveCell(sudoku_div_id, cells[info[0]]);
+            setFontSize(cells[info[0]]);
+        }
+    }
+
     const setCellValue = (cell, value) => {
         if (value === (" ") || value === "0" || value === "&nbsp;") {
             cell.innerHTML = "&nbsp;";
@@ -397,15 +470,22 @@
         const key = Sudoku.getPuzzleString(sudoku_div_id);
         const cells = getCellsByDivId(sudoku_div_id);
         let cell_array = [];
+        let note_array = [];
         for (const cell of cells) {
             if (isProtectedCell(cell)) {
                 cell_array.push([cell.textContent, true])
             } else {
                 cell_array.push([cell.textContent, false])
             }
+            if (cell.classList.contains('sudoku-note')) {
+                note_array.push(1);
+            } else {
+                note_array.push(0);
+            }
         }
         localStorage.setItem(sudoku_prefix + key,
-                             JSON.stringify(cell_array));
+                             JSON.stringify({'grid': cell_array,
+                                             'notes': note_array}));
     }
 
     const setCell = (cell, value, protect = false) => {
@@ -415,7 +495,9 @@
             cell.contentEditable = false;
         } else {
             cell.classList.remove('sudoku-protected');
-            cell.contentEditable = true;
+            if (!isSmallHeight()) {
+                cell.contentEditable = true;
+            }
         }
     }
 
@@ -432,13 +514,34 @@
         }
     }
 
+    const setNotes = (sudoku_div_id, notes) => {
+        let cells = getCellsByDivId(sudoku_div_id);
+        for (let i = 0; i < cells.length; i++) {
+            if (notes[i] == 1) {
+                cells[i].classList.add('sudoku-note');
+            } else {
+                cells[i].classList.remove('sudoku-note');
+            }
+        }
+    }
+
+
     const loadGrid = (sudoku_div_id_from, sudoku_div_id_to) => {
         const key = Sudoku.getPuzzleString(sudoku_div_id_from);
-        const grid = JSON.parse(localStorage.getItem(sudoku_prefix + key));
-        if (grid) {
-            setGrid(sudoku_div_id_to, grid);
-        } else {
-            return false;
+        const board = JSON.parse(localStorage.getItem(sudoku_prefix + key));
+        if (board && 'grid' in board) {
+            const grid = board['grid'];
+            if (grid) {
+                setGrid(sudoku_div_id_to, grid);
+            } else {
+                return false;
+            }
+        }
+        if (board && 'notes' in board) {
+            const notes = board['notes'];
+            if (notes) {
+                setNotes(sudoku_div_id_to, notes);
+            }
         }
         markAllDuplicateCells(sudoku_div_id_to);
         return true;
@@ -501,6 +604,7 @@
     }
 
     const processInput = (sudoku_div_id, cell, value) => {
+        saveUndo(sudoku_div_id, cell);
         if (value === '\xa0' || value === " " || value === "0") {
             setCellValue(cell, "0");
         } else if (digitIn(cell, value)) {
@@ -513,34 +617,42 @@
         placeCursorAtEnd(cell);
     }
 
-    const setupTable = (sudoku_div_id, sudoku_table) => {
-        let cells = sudoku_table.getElementsByTagName('td');
-        let blurCells = false;
-        const os = getMobileOS();
-        if (os === "Android" || os === "iOS") blurCells = true;
+    const setupTable = (sudoku_div_id) => {
+        let cells = getCellsByDivId(sudoku_div_id);
+        let nokeyboard = false;
+        if (isSmallHeight()) {
+            nokeyboard = true;
+        }
         for (let cell of cells) {
-            if (blurCells) {
+            if (nokeyboard) {
+                cell.contentEditable = false;
+                cell.addEventListener("click", function(e) {
+                    setActiveCell(sudoku_div_id, e.target);
+                });
+            } else {
+                if (!isProtectedCell(cell)) {
+                    cell.contentEditable = true;
+                }
                 cell.addEventListener("focus", function(e) {
-                    cell.blur();
+                    setActiveCell(sudoku_div_id, e.target);
+                });
+                cell.addEventListener('keydown', function(e) {
+                    const c = String.fromCharCode(e.keyCode);
+                    if (' 0123456789'.includes(c)) {
+                        processInput(sudoku_div_id, e.target, c);
+                        e.preventDefault();
+                    } else if (![8,9,17,35,36,37,39,46].includes(e.keyCode)) {
+                        // Only allow L/R arrow keys, delete, backspace, home, end
+                        e.preventDefault();
+                    }
+                });
+                cell.addEventListener('keyup', function() {
+                    processCell(sudoku_div_id, cell);
                 });
             }
-            cell.addEventListener("focus", function(e) {
-                setActiveCell(sudoku_div_id, e.target);
-            });
-            cell.addEventListener('keydown', function(e) {
-                const c = String.fromCharCode(e.keyCode);
-                if (' 0123456789'.includes(c)) {
-                    processInput(sudoku_div_id, e.target, c);
-                    e.preventDefault();
-            } else if (![8, 9, 17, 35, 36, 37, 39, 46].includes(e.keyCode)) {
-                e.preventDefault();
-            }
-            });
-            cell.addEventListener('keyup', function() {
-                processCell(sudoku_div_id, cell);
-            });
         }
     }
+
 
 
     const setupDigits = (sudoku_div_id) => {
@@ -567,13 +679,13 @@
             div.classList.remove('sudoku-no-colors');
             markAllDuplicateCells(sudoku_div_id);
             if (btn) {
-                btn.textContent = 'Colors off';
+                //btn.textContent = 'Colors off';
             }
         } else {
             div.classList.add('sudoku-no-colors');
             unmarkAllDuplicateCells(sudoku_div_id);
             if (btn) {
-                btn.textContent = 'Colors on';
+                //btn.textContent = 'Colors on';
             }
         }
     }
@@ -584,6 +696,7 @@
             if (!isProtectedCell(cell)) {
                 clearCellText(cell);
             }
+            cell.classList.remove('sudoku-note');
             unmarkDuplicateCell(cell);
         }
     };
@@ -605,9 +718,7 @@
     }
 
     const init = (sudoku_div_id, puzzle_str, options) => {
-        let sudoku_div = document.getElementById(sudoku_div_id);
-        let sudoku_table = sudoku_div.getElementsByTagName('table')[0];
-        setupTable(sudoku_div_id, sudoku_table);
+        setupTable(sudoku_div_id);
         setupDigits(sudoku_div_id);
         const grid = convertPuzzleStr(puzzle_str);
         setGrid(sudoku_div_id, grid);
@@ -615,12 +726,15 @@
             loadGrid(sudoku_div_id, sudoku_div_id);
         }
         findAndSetActiveCell(sudoku_div_id);
+        let sudoku_div = document.getElementById(sudoku_div_id);
         let restart_btn = sudoku_div.getElementsByClassName('sudoku-restart')[0];
         if (restart_btn) {
             restart_btn.addEventListener('click', function() {
                 if (confirm('Are you sure you wish to restart')) {
                     clearGrid(sudoku_div);
                     saveGrid(sudoku_div_id);
+                    undo_stacks[sudoku_div_id] = [];
+                    redo_stacks[sudoku_div_id] = [];
                 }
             });
         }
@@ -637,8 +751,22 @@
         if (note_btn) {
             note_btn.addEventListener('click', function(e) {
                 if (active_cell && sudoku_div.contains(active_cell)) {
+                    saveUndo(sudoku_div_id, active_cell);
                     active_cell.classList.toggle('sudoku-note');
+                    saveGrid(sudoku_div_id);
                 }
+            });
+        }
+        let undo_btn = sudoku_div.getElementsByClassName('sudoku-undo-btn')[0];
+        if (undo_btn) {
+            undo_btn.addEventListener('click', function(e) {
+                undo(sudoku_div_id, 'u');
+            });
+        }
+        let redo_btn = sudoku_div.getElementsByClassName('sudoku-redo-btn')[0];
+        if (redo_btn) {
+            redo_btn.addEventListener('click', function(e) {
+                undo(sudoku_div_id, 'r');
             });
         }
         let load_btn = sudoku_div.getElementsByClassName('sudoku-load-btn')[0];
@@ -660,109 +788,143 @@
                 setGrid(sudoku_div_id, grid);
             });
         }
+        let stop_watch;
+        const changeTime = () => {
+            let now = new Date();
+            let seconds = parseInt((now - start_time + additional_ms) / 1000);
+            let display_seconds = seconds % 60;
+            let minutes = parseInt(seconds / 60);
+            let hours = parseInt(seconds / 3600);
+            stop_watch_span.getElementsByClassName('sudoku-hours')[0].
+                textContent = twoDigits(hours) + ":";
+            stop_watch_span.getElementsByClassName('sudoku-minutes')[0].
+                textContent = twoDigits(minutes) + ":";
+            stop_watch_span.getElementsByClassName('sudoku-seconds')[0].
+                textContent = twoDigits(display_seconds);
+        }
+        let stop_watch_span = sudoku_div.
+            getElementsByClassName('sudoku-stopwatch')[0];
+        if (stop_watch_span) {
+            stop_watch = setInterval(changeTime, 500);
+            let pause_button = sudoku_div.getElementsByClassName('sudoku-pause')[0];
+            pause_button.addEventListener("click", function(e) {
+                if (pause_button.classList.contains('sudoku-stopwatch-play')) {
+                    start_time = new Date();
+                    pause_button.classList.remove('sudoku-stopwatch-play');
+                    pause_button.textContent = '𝍪';
+                    stop_watch = setInterval(changeTime, 500);
+                } else {
+                    clearInterval(stop_watch);
+                    additional_ms = new Date() - start_time;
+                    console.log("Additional ms", additional_ms);
+                    pause_button.classList.add('sudoku-stopwatch-play');
+                    pause_button.textContent = '▶';
+                }
+            });
+        }
     }
 
     const insertTable = (sudoku_div) => {
         const innerhtml = '<p class="sudoku-incomplete">Puzzle completed</p> ' +
               '<table class="sudoku-table"> '+
               '<tr id="sudoku-tr-0"> '+
-              '<td class="sudoku-td-0" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-1" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-2" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-3" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-4" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-5" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-6" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-7" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-8" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-0" >&nbsp;</td> '+
+              '<td class="sudoku-td-1" >&nbsp;</td> '+
+              '<td class="sudoku-td-2" >&nbsp;</td> '+
+              '<td class="sudoku-td-3" >&nbsp;</td> '+
+              '<td class="sudoku-td-4" >&nbsp;</td> '+
+              '<td class="sudoku-td-5" >&nbsp;</td> '+
+              '<td class="sudoku-td-6" >&nbsp;</td> '+
+              '<td class="sudoku-td-7" >&nbsp;</td> '+
+              '<td class="sudoku-td-8" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-1"> '+
-              '<td class="sudoku-td-9" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-10" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-11" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-12" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-13" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-14" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-15" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-16" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-17" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-9" >&nbsp;</td> '+
+              '<td class="sudoku-td-10" >&nbsp;</td> '+
+              '<td class="sudoku-td-11" >&nbsp;</td> '+
+              '<td class="sudoku-td-12" >&nbsp;</td> '+
+              '<td class="sudoku-td-13" >&nbsp;</td> '+
+              '<td class="sudoku-td-14" >&nbsp;</td> '+
+              '<td class="sudoku-td-15" >&nbsp;</td> '+
+              '<td class="sudoku-td-16" >&nbsp;</td> '+
+              '<td class="sudoku-td-17" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-2"> '+
-              '<td class="sudoku-td-18" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-19" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-20" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-21" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-22" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-23" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-24" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-25" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-26" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-18" >&nbsp;</td> '+
+              '<td class="sudoku-td-19" >&nbsp;</td> '+
+              '<td class="sudoku-td-20" >&nbsp;</td> '+
+              '<td class="sudoku-td-21" >&nbsp;</td> '+
+              '<td class="sudoku-td-22" >&nbsp;</td> '+
+              '<td class="sudoku-td-23" >&nbsp;</td> '+
+              '<td class="sudoku-td-24" >&nbsp;</td> '+
+              '<td class="sudoku-td-25" >&nbsp;</td> '+
+              '<td class="sudoku-td-26" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-3"> '+
-              '<td class="sudoku-td-27" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-28" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-29" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-30" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-31" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-32" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-33" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-34" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-35" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-27" >&nbsp;</td> '+
+              '<td class="sudoku-td-28" >&nbsp;</td> '+
+              '<td class="sudoku-td-29" >&nbsp;</td> '+
+              '<td class="sudoku-td-30" >&nbsp;</td> '+
+              '<td class="sudoku-td-31" >&nbsp;</td> '+
+              '<td class="sudoku-td-32" >&nbsp;</td> '+
+              '<td class="sudoku-td-33" >&nbsp;</td> '+
+              '<td class="sudoku-td-34" >&nbsp;</td> '+
+              '<td class="sudoku-td-35" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-4"> '+
-              '<td class="sudoku-td-36" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-37" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-38" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-39" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-40" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-41" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-42" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-43" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-44" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-36" >&nbsp;</td> '+
+              '<td class="sudoku-td-37" >&nbsp;</td> '+
+              '<td class="sudoku-td-38" >&nbsp;</td> '+
+              '<td class="sudoku-td-39" >&nbsp;</td> '+
+              '<td class="sudoku-td-40" >&nbsp;</td> '+
+              '<td class="sudoku-td-41" >&nbsp;</td> '+
+              '<td class="sudoku-td-42" >&nbsp;</td> '+
+              '<td class="sudoku-td-43" >&nbsp;</td> '+
+              '<td class="sudoku-td-44" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-5"> '+
-              '<td class="sudoku-td-45" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-46" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-47" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-48" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-49" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-50" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-51" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-52" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-53" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-45" >&nbsp;</td> '+
+              '<td class="sudoku-td-46" >&nbsp;</td> '+
+              '<td class="sudoku-td-47" >&nbsp;</td> '+
+              '<td class="sudoku-td-48" >&nbsp;</td> '+
+              '<td class="sudoku-td-49" >&nbsp;</td> '+
+              '<td class="sudoku-td-50" >&nbsp;</td> '+
+              '<td class="sudoku-td-51" >&nbsp;</td> '+
+              '<td class="sudoku-td-52" >&nbsp;</td> '+
+              '<td class="sudoku-td-53" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-6"> '+
-              '<td class="sudoku-td-54" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-55" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-56" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-57" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-58" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-59" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-60" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-61" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-62" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-54" >&nbsp;</td> '+
+              '<td class="sudoku-td-55" >&nbsp;</td> '+
+              '<td class="sudoku-td-56" >&nbsp;</td> '+
+              '<td class="sudoku-td-57" >&nbsp;</td> '+
+              '<td class="sudoku-td-58" >&nbsp;</td> '+
+              '<td class="sudoku-td-59" >&nbsp;</td> '+
+              '<td class="sudoku-td-60" >&nbsp;</td> '+
+              '<td class="sudoku-td-61" >&nbsp;</td> '+
+              '<td class="sudoku-td-62" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-7"> '+
-              '<td class="sudoku-td-63" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-64" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-65" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-66" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-67" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-68" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-69" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-70" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-71" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-63" >&nbsp;</td> '+
+              '<td class="sudoku-td-64" >&nbsp;</td> '+
+              '<td class="sudoku-td-65" >&nbsp;</td> '+
+              '<td class="sudoku-td-66" >&nbsp;</td> '+
+              '<td class="sudoku-td-67" >&nbsp;</td> '+
+              '<td class="sudoku-td-68" >&nbsp;</td> '+
+              '<td class="sudoku-td-69" >&nbsp;</td> '+
+              '<td class="sudoku-td-70" >&nbsp;</td> '+
+              '<td class="sudoku-td-71" >&nbsp;</td> '+
               '</tr> '+
               '<tr class="sudoku-tr-8"> '+
-              '<td class="sudoku-td-72" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-73" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-74" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-75" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-76" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-77" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-78" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-79" contenteditable=true>&nbsp;</td> '+
-              '<td class="sudoku-td-80" contenteditable=true>&nbsp;</td> '+
+              '<td class="sudoku-td-72" >&nbsp;</td> '+
+              '<td class="sudoku-td-73" >&nbsp;</td> '+
+              '<td class="sudoku-td-74" >&nbsp;</td> '+
+              '<td class="sudoku-td-75" >&nbsp;</td> '+
+              '<td class="sudoku-td-76" >&nbsp;</td> '+
+              '<td class="sudoku-td-77" >&nbsp;</td> '+
+              '<td class="sudoku-td-78" >&nbsp;</td> '+
+              '<td class="sudoku-td-79" >&nbsp;</td> '+
+              '<td class="sudoku-td-80" >&nbsp;</td> '+
               '</tr> '+
               '</table> ';
         sudoku_div.innerHTML += innerhtml;
@@ -786,21 +948,36 @@
     }
 
     const restartButtonHTML = () => {
-        return '<button class="sudoku-restart">Restart</button>';
+        return '<button class="sudoku-restart" title="Restart">⏻</button>';
     }
 
     const colorsButtonHTML = () => {
-        return '<button class="sudoku-colors">Colors off</button>';
+        return '<button class="sudoku-colors" title="Toggle warnings">⚠</button>';
     }
 
     const noteButtonHTML = () => {
-        return '<button class="sudoku-note-btn">Note</button>';
+        return '<button class="sudoku-note-btn" title="Note">🖊</button>';
+    }
+
+    const undoButtonHTML = () => {
+        const html =  '<button class="sudoku-undo-btn" title="Undo">↺</button>' +
+              '<button class="sudoku-redo-btn" title="Redo">↻</button>';
+        return html;
     }
 
     const loadFormHTML = () => {
         const html = '<button class="sudoku-load-btn">Load</button>' +
               '<input class="sudoku-load-input"' +
               'type="text" minlength="81" maxlength="81">';
+        return html;
+    }
+
+    const stopWatchHTML = () => {
+        const html = '<span class="sudoku-stopwatch">'+
+              '<span class="sudoku-hours">00:</span>' +
+              '<span class="sudoku-minutes">00:</span>' +
+              '<span class="sudoku-seconds">00</span>' +
+              '<span class="sudoku-pause">𝍪</span></span>';
         return html;
     }
 
@@ -815,8 +992,14 @@
         if (options.note_button === true) {
             innerhtml += noteButtonHTML();
         }
+        if (options.undo_button === true) {
+            innerhtml += undoButtonHTML();
+        }
         if (options.load_form === true) {
             innerhtml += loadFormHTML();
+        }
+        if (options.stop_watch === true) {
+            innerhtml += stopWatchHTML();
         }
         innerhtml += '</p>';
         sudoku_div.innerHTML += innerhtml;
@@ -838,6 +1021,8 @@
             restart_button: true,
             colors_button: true,
             note_button: true,
+            undo_button: true,
+            stop_watch: false,
             load_form: false
         };
         for (let [key, value] of Object.entries(options)) {

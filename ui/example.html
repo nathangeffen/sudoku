@@ -24,7 +24,9 @@
          const almost_solved = '458726193917483256623159487561278934372964518849315762235897641786541329194632800';
          Sudoku.create('sudoku-1', almost_solved, {try_load: true,
                                                    colors_on: false,
-                                                   colors_button: false});
+                                                   colors_button: true,
+                                                   undo_button: true,
+                                                   stop_watch: true});
          Sudoku.create('sudoku-2', hard);
          Sudoku.create('sudoku-3',
                        '926435871574681239831972645189743562453126798267598314395864127648217953712359480');

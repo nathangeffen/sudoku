@@ -1,3 +1,4 @@
+import argparse
 import random
 from operator import add
 import time
@@ -410,3 +411,64 @@ def board_to_str(board):
 def str_to_board(s):
     board = list(s)
     return [int(b) for b in board]
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Sudoku solver and generator')
+    parser.add_argument("-s", "--solve",
+                        dest="solve",
+                        type=str,
+                        default="",
+                        help="Solve a Sudoku puzzle")
+    parser.add_argument("-v", "--very_easy",
+                        dest="very_easy",
+                        action="store_true",
+                        help="Make an easy Sudoku puzzle")
+    parser.add_argument("-e", "--easy",
+                        dest="easy",
+                        action="store_true",
+                        help="Make an easy Sudoku puzzle")
+    parser.add_argument("-m", "--medium",
+                        dest="medium",
+                        action="store_true",
+                        help="Make a medium difficulty Sudoku puzzle")
+    parser.add_argument("-d", "--hard",
+                        dest="hard",
+                        action="store_true",
+                        help="Make a hard Sudoku puzzle")
+
+    args = parser.parse_args()
+
+    if args.solve:
+        board = str_to_board(args.solve)
+        solutions = find_solutions(board)
+        for s in solutions:
+            print_board(s)
+            print("Solution:", board_to_str(s))
+
+    if args.very_easy:
+        puzzle = make_puzzle(max_removals=55, min_ones=6, simple=True)
+        while num_filled_in(puzzle) > 45:
+            puzzle = make_puzzle(max_removals=55, min_ones=6, simple=True)
+        print_board(puzzle)
+        print("Puzzle:", board_to_str(puzzle))
+
+    if args.easy:
+        puzzle = make_puzzle(max_removals=55, min_ones=4, simple=True)
+        while num_filled_in(puzzle) > 40:
+            puzzle = make_puzzle(max_removals=55, min_ones=4, simple=True)
+        print_board(puzzle)
+        print("Puzzle:", board_to_str(puzzle))
+
+    if args.medium:
+        puzzle = make_puzzle(max_removals=55, min_ones=2, simple=True)
+        while num_filled_in(puzzle) > 35:
+            puzzle = make_puzzle(max_removals=55, min_ones=2, simple=True)
+        print_board(puzzle)
+        print("Puzzle:", board_to_str(puzzle))
+
+    if args.hard:
+        puzzle = make_puzzle(max_removals=55, min_ones=2, simple=False)
+        while num_filled_in(puzzle) > 30:
+            puzzle = make_puzzle(max_removals=55, min_ones=2, simple=False)
+        print_board(puzzle)
+        print("Puzzle:", board_to_str(puzzle))

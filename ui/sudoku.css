@@ -126,13 +126,21 @@
 }
 
 .sudoku-equal-digit {
-    text-decoration: underline;
-    font-size: 1.3em !important;
+    background-color: lightgray;
 }
 
 .sudoku-buttons {
     text-align: center;
     margin: auto;
+}
+
+.sudoku-control {
+    line-height: 2em;
+    font-family: "Lucida Console", Courier, monospace;
+}
+
+.sudoku-control button {
+    height: 33px;
 }
 
 /* This is necessary to prevent an image inside the button being captured. */
@@ -175,4 +183,25 @@
 
 .sudoku-load-input {
     margin-left: 6px;
+}
+
+.sudoku-stopwatch {
+    margin: 6px;
+    padding: 6px;
+    font-size: .9em;
+    color: #555;
+    border: 1px solid #888;
+    border-radius: 3px;
+    vertical-align: top;
+}
+
+.sudoku-pause {
+    font-weight: bold;
+    margin-left: 3px;
+    width: 16px;
+    display: inline-block;
+}
+
+.sudoku-pause:hover {
+     cursor: pointer;
 }

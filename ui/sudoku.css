@@ -5,6 +5,7 @@
     border: 3px solid black;
     margin: auto;
     border-collapse: collapse;
+    table-layout: fixed;
 }
 
 .sudoku-table-completed {
@@ -20,6 +21,7 @@
     border-right: 1px solid black;
     border-bottom: 1px solid black;
     font-size: 1.2em;
+    word-wrap: break-word
 }
 
 .sudoku-incomplete {
@@ -69,31 +71,31 @@
 }
 
 .sudoku-table td.sudoku-font-3 {
-    font-size: 70%;
+    font-size: 70% !important;
 }
 
 .sudoku-table td.sudoku-font-4 {
-    font-size: 65%;
+    font-size: 65%  !important;
 }
 
 .sudoku-table td.sudoku-font-5 {
-    font-size: 55%;
+    font-size: 55% !important;
 }
 
 .sudoku-table td.sudoku-font-6 {
-    font-size: 50%;
+    font-size: 55% !important;
 }
 
 .sudoku-table td.sudoku-font-7 {
-    font-size: 50%;
+    font-size: 55% !important;
 }
 
 .sudoku-table td.sudoku-font-8 {
-    font-size: 50%;
+    font-size: 55% !important;
 }
 
 .sudoku-table td.sudoku-font-9 {
-    font-size: 50%;
+    font-size: 55% !important;
 }
 
 .sudoku-protected {
@@ -132,10 +134,12 @@
 .sudoku-buttons {
     text-align: center;
     margin: auto;
+    display: block;
 }
 
 .sudoku-control {
     line-height: 2.5em;
+    display: block;
 }
 
 .sudoku-control button {
@@ -187,6 +191,7 @@
 
 .sudoku-stopwatch-box {
     text-align: center;
+    display: block;
 }
 
 .sudoku-stopwatch {

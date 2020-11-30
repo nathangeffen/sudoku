@@ -195,13 +195,17 @@
 }
 
 .sudoku-stopwatch {
-    margin: 3px auto 3px auto;
+    margin: 8px;
     display: inline-block;
-    padding: 3px;
+    padding-top: 8px;
+    padding-bottom: 4px;
+    padding-left: 3px;
+    padding-right: 3px;
     color: #555;
     border: 1px solid #888;
     border-radius: 6px;
     text-align: center;
+    vertical-align: top;
     height: 28px;
 }
 
@@ -210,6 +214,8 @@
     margin-left: 3px;
     width: 16px;
     display: inline-block;
+    font-size: 12px;
+    vertical-align: middle;
 }
 
 .sudoku-pause:hover {

@@ -803,7 +803,7 @@
         stop_watches[sudoku_div_id]['start_time'] = new Date();
         stop_watches[sudoku_div_id]['pause_button'].classList.
             remove('sudoku-stopwatch-paused');
-        console.log("A", stop_watches[sudoku_div_id]['pause_button'].classList);
+        showCells(sudoku_div_id);
         stop_watches[sudoku_div_id]['timer'] = setInterval(function() {
             changeTime(sudoku_div_id);
         }, 500);
@@ -820,6 +820,7 @@
                 stop_watches[sudoku_div_id]['pause_button'].style.display = "none";
             } else {
                 stop_watches[sudoku_div_id]['pause_button'].textContent = '▶';
+                hideCells(sudoku_div_id);
             }
             stop_watches[sudoku_div_id]['pause_button'].classList.
                 add('sudoku-stopwatch-paused');

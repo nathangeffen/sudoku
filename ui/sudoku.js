@@ -1033,7 +1033,7 @@
     }
 
     const restartButtonHTML = () => {
-        return '<button class="sudoku-restart" title="Clear board and restart">Clear</button>';
+        return '<button class="sudoku-restart" title="Clear board and restart">Restart</button>';
     }
 
     const colorsButtonHTML = () => {

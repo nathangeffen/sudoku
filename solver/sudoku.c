@@ -425,6 +425,7 @@ void
 output_solution(grid_t grid, int max_depth)
 {
     struct board_s board;
+    int n;
     board = convert_to_bitboard(grid);
     if (verbose)
         print_puzzle(board.grid);
@@ -433,7 +434,11 @@ output_solution(grid_t grid, int max_depth)
     if (verbose)
         print_result(&board);
 
-    print_grid(board.solutions[0]);
+    n = num_solutions(&board);
+    for (int i = 0; i < n; i++) {
+        printf("%d,", i+1);
+        print_grid(board.solutions[i]);
+    }
 }
 
 

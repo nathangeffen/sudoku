@@ -252,34 +252,21 @@ def place_only_options(board, possibles):
 def fill_cells(board, products):
     stack = []
     possibles = get_all_possibles(board)
+    # [0]->board, [1]->num possible vals (for calc permutations, [2]->used vals
     stack.append([board.copy(), 1, []])
 
-    z = 0
     # Loop while stack is valid and we top board_new on stack is incomplete
     while len(stack) > 0 and is_complete(stack[-1][0]) == False:
-        z = z + 1
-        if z % 100000 == 0:
-            print("Board", z, len(stack), len([c for c in stack[-1][0] if c!=0]))
-            print_board(stack[-1][0])
-            print("Possibiles", get_all_possibles(stack[-1][0]))
-            print("Excluding", stack[-1][2])
         board_new = stack[-1][0].copy() # Work with board_new at top of stack
-        used_indices = stack[-1][2]
 
         # Check that it's good
         if is_good_partial(board_new) == False:
             stack.pop()
             break
 
-        #prev = []
-        #while prev != board_new and contains_empty(possibles) == False:
-        #    prev = board_new.copy()
-        #    possibles = get_all_possibles(board_new)
-        #    board_new = place_singles(board_new, possibles)
-        #    board_new = place_only_options(board_new, possibles)
-
         possibles = get_all_possibles(board_new)
-
+        # Remove tried values from possibles
+        used_indices = stack[-1][2]
         for p in possibles:
             removals = [u[1] for u in used_indices if p[0] == u[0]]
             for r in removals:
@@ -288,20 +275,18 @@ def fill_cells(board, products):
                 except:
                     pass
 
-        if is_good_partial(board_new) == False:
+        if contains_empty(possibles): # This is a bad board
             stack.pop()
-        elif contains_empty(possibles):
-            stack.pop()
-        elif is_complete(board_new):
-            stack.append([board_new.copy(), 1, []])
         else:
+            # Choose the shortest entry in possibles. Then choose a random
+            # val from that entry.
+            # [0]->len, [1]->cell idx, [2]->possible vals
             lengths = sorted([(len(p[1]), p[0], p[1]) for p in possibles])
             cell = lengths[0][1]
             index = random.randrange(0, lengths[0][0])
             val = lengths[0][2][index]
             board_new[cell] = val
-            if len(stack):
-                stack[-1][2].append((cell, val,))
+            stack[-1][2].append((cell, val,))
             stack.append([board_new.copy(), lengths[0][0], []])
 
     if len(stack) == 0:
@@ -352,14 +337,12 @@ def check_results(results):
 def find_solutions(board, max_solutions=2):
     solutions = []
     possibles = get_all_possibles(board)
-    lengths = sorted([(len(p[1]), p[0], p[1]) for p in possibles])
-    cell = lengths[0][1]
     for p in possibles:
         for val in p[1]:
             board_new = board.copy()
-            board_new[cell] = val
+            board_new[p[0]] = val
             solution = make_complete(board_new)[0]
-            if solution and (len(solutions) == 0 or solution != solutions[0]):
+            if solution and (solution not in solutions):
                 solutions.append(solution)
             if len(solutions) == max_solutions:
                 return solutions
@@ -388,10 +371,10 @@ def make_puzzle(symmetrical=True, max_removals=55, min_ones=2, simple=True):
         if num_blanks > max_removals:
             break
         if num_blanks > min_ones:
+            if len(find_solutions(board_copy)) > 1:
+                break
             if len([p for p in possibles if len(p[1]) == 1]) < min_ones:
                 break
-            if len(find_solutions(board_copy)) > 1:
-                break;
 
     if simple:
         return prev

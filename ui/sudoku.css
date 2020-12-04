@@ -151,8 +151,8 @@ tr[class^='sudoku-tr-']:nth-child(3n) {
 }
 
 .sudoku-control button {
-    height: 44px;
-    width: 44px;
+    height: 50px;
+    width: 50px;
     font-size: 0.85em;
     font-family: Lucida Sans Unicode;
     vertical-align: text-bottom;
@@ -162,12 +162,18 @@ tr[class^='sudoku-tr-']:nth-child(3n) {
     background-color: lightblue;
 }
 
-.sudoku-button-icon {
+.sudoku-button-container {
     display: grid;
 }
 
+.sudoku-button-icon {
+    grid-column-start: 1;
+    grid-column-end: 1;
+}
+
 .sudoku-button-explain {
-    display: grid;
+    grid-column-start: 1;
+    grid-column-end: 1;
     font-size: 0.5em;
 }
 

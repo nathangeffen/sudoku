@@ -91,6 +91,11 @@
     let redo_stacks = {};
 
     let stop_watches = {};
+    let saved_times = {};
+
+    let sudoku_div_ids = [];
+
+    let hints = {};
 
     ///////////////////////////
 
@@ -486,6 +491,7 @@
         const cells = getCellsByDivId(sudoku_div_id);
         let cell_array = [];
         let note_array = [];
+        let elapsed_time = 0;
         for (const cell of cells) {
             if (isProtectedCell(cell)) {
                 cell_array.push([cell.textContent, true])
@@ -498,9 +504,13 @@
                 note_array.push(0);
             }
         }
+        if (sudoku_div_id in stop_watches) {
+            elapsed_time = getElapsedTime(sudoku_div_id);
+        }
         localStorage.setItem(sudoku_prefix + key,
                              JSON.stringify({'grid': cell_array,
-                                             'notes': note_array}));
+                                             'notes': note_array,
+                                             'elapsed_time': elapsed_time}));
     }
 
     const setCell = (cell, value, protect = false) => {
@@ -557,6 +567,9 @@
             if (notes) {
                 setNotes(sudoku_div_id_to, notes);
             }
+        }
+        if (board && 'elapsed_time' in board) {
+            saved_times[sudoku_div_id_to] = board['elapsed_time'];
         }
         markAllDuplicateCells(sudoku_div_id_to);
         return true;
@@ -749,13 +762,24 @@
 
     /*************** Stop watch management *******************/
 
+    const getElapsedTime = (sudoku_div_id) => {
+        if (stop_watches[sudoku_div_id]['pause_button'].classList.
+            contains('sudoku-stopwatch-paused')) {
+            return stop_watches[sudoku_div_id]['elapsed_time'];
+        } else {
+            let start_time = stop_watches[sudoku_div_id]['start_time'];
+            let elapsed_time = stop_watches[sudoku_div_id]['elapsed_time'];
+            let now = new Date();
+            return now - start_time + elapsed_time;
+        }
+    }
+
     const changeTime = (sudoku_div_id) => {
         if (sudoku_div_id in stop_watches) {
             let start_time = stop_watches[sudoku_div_id]['start_time'];
             let elapsed_time = stop_watches[sudoku_div_id]['elapsed_time'];
             let now = new Date();
-            let seconds = parseInt((now - start_time + elapsed_time) / 1000);
-            console.log(seconds);
+            let seconds = parseInt(getElapsedTime(sudoku_div_id) / 1000);
             let display_seconds = seconds % 60;
             let minutes = parseInt(seconds / 60) % 60;
             let hours = parseInt(seconds / 3600);
@@ -770,13 +794,15 @@
 
     const startStopWatch = (sudoku_div_id) => {
         if ( (sudoku_div_id in stop_watches) == false) {
-            // No stopwatch needed on complete puzzle
-            if (Sudoku.checkCompleted(sudoku_div_id)) return;
             let stop_watch_span = document.getElementById(sudoku_div_id).
                 getElementsByClassName('sudoku-stopwatch')[0];
             if (!stop_watch_span) return; // No stopwatch - don't do anything
+            let saved_elapsed_time = 0;
+            if (sudoku_div_id in saved_times) {
+                saved_elapsed_time = saved_times[sudoku_div_id];
+            }
             stop_watches[sudoku_div_id] = {
-                elapsed_time: 0,
+                elapsed_time: saved_elapsed_time,
                 timer: null,
                 stop_watch_span: stop_watch_span,
                 hours_span: stop_watch_span.
@@ -790,7 +816,6 @@
             };
             stop_watches[sudoku_div_id]['pause_button'].
                 addEventListener("click", function() {
-                    console.log("Here", stop_watches[sudoku_div_id]['pause_button'].classList);
                     if (stop_watches[sudoku_div_id]['pause_button'].classList.
                         contains('sudoku-stopwatch-paused')) {
                         startStopWatch(sudoku_div_id);
@@ -804,13 +829,19 @@
         stop_watches[sudoku_div_id]['pause_button'].classList.
             remove('sudoku-stopwatch-paused');
         showCells(sudoku_div_id);
-        stop_watches[sudoku_div_id]['timer'] = setInterval(function() {
+        if (Sudoku.checkCompleted(sudoku_div_id) == false) {
+            stop_watches[sudoku_div_id]['pause_button'].classList.
+                remove('sudoku-stopwatch-paused');
+            stop_watches[sudoku_div_id]['timer'] = setInterval(function() {
+                changeTime(sudoku_div_id);
+            }, 500);
+        } else {
             changeTime(sudoku_div_id);
-        }, 500);
+            pauseStopWatch(sudoku_div_id, true);
+        }
     }
 
     const pauseStopWatch = (sudoku_div_id, permanent = false) => {
-        console.log("Pausing.");
         if (sudoku_div_id in stop_watches) {
             clearInterval(stop_watches[sudoku_div_id]['timer']);
             let start_time = stop_watches[sudoku_div_id]['start_time'];
@@ -824,9 +855,18 @@
             }
             stop_watches[sudoku_div_id]['pause_button'].classList.
                 add('sudoku-stopwatch-paused');
-            console.log(stop_watches[sudoku_div_id]['elapsed_time']);
         }
     }
+
+    const resetStopWatch = (sudoku_div_id) => {
+        stop_watches[sudoku_div_id]['pause_button'].style.display = "inline";
+        stop_watches[sudoku_div_id]['pause_button'].classList.
+            remove('sudoku-stopwatch-paused')
+        stop_watches[sudoku_div_id]['elapsed_time'] = 0;
+        stop_watches[sudoku_div_id]['start_time'] = new Date();
+        startStopWatch(sudoku_div_id);
+    }
+
 
     /********************************************************/
 
@@ -849,6 +889,10 @@
                     saveGrid(sudoku_div_id);
                     undo_stacks[sudoku_div_id] = [];
                     redo_stacks[sudoku_div_id] = [];
+                    unmarkCompleted(sudoku_div_id);
+                    if (sudoku_div_id in stop_watches) {
+                        resetStopWatch(sudoku_div_id);
+                    }
                 }
             });
         }
@@ -1034,37 +1078,50 @@
 
     const restartButtonHTML = () => {
         return '<button class="sudoku-restart" title="Clear board and restart">' +
+            '<span class="sudoku-button-container">' +
             '<span class="sudoku-button-icon">⏻</span>' +
-            '<span class="sudoku-button-explain">Restart</span></button>';
+            '<span class="sudoku-button-explain">Restart</span>' +
+            '</span></button>';
     }
 
     const colorsButtonHTML = () => {
         return '<button class="sudoku-colors" title="Duplicate cell colors">' +
+            '<span class="sudoku-button-container">' +
             '<span class="sudoku-button-icon">⚠</span>' +
-            '<span class="sudoku-button-explain">Colors</span></button>';
+            '<span class="sudoku-button-explain">Colors</span>' +
+            '</span></button>';
     }
 
     const noteButtonHTML = () => {
         return '<button class="sudoku-note-btn" title="Toggle note">'+
+            '<span class="sudoku-button-container">' +
             '<span class="sudoku-button-icon">🖊</span>' +
-            '<span class="sudoku-button-explain">Note</span></button>';
+            '<span class="sudoku-button-explain">Note</span>' +
+            '</span></button>';
     }
 
     const undoButtonHTML = () => {
         const html =  '<button class="sudoku-undo-btn" title="Undo">' +
+              '<span class="sudoku-button-container">' +
               '<span class="sudoku-button-icon">↺</span>' +
-              '<span class="sudoku-button-explain">Undo</span></button></button>' +
-              '<button class="sudoku-redo-btn" title="Redo">↻' +
-              '<span class="sudoku-button-explain">Redo</span></button>';
+              '<span class="sudoku-button-explain">Undo</span>'+
+              '</span></button>' +
+              '<button class="sudoku-redo-btn" title="Redo">' +
+              '<span class="sudoku-button-container">' +
+              '<span class="sudoku-button-icon">↻</span>' +
+              '<span class="sudoku-button-explain">Redo</span>' +
+              '</span></button>';
         return html;
     }
 
     const loadFormHTML = () => {
         const html =  '<input class="sudoku-load-input"' +
               'type="text" minlength="81" maxlength="81">'+
-              '<button class="sudoku-load-btn">' +
-              '<span class="sudoku-button-icon">🠕</span>'
-              '<span class="sudoku-button-explain">Load</span></button>';
+              '<button class="sudoku-load-btn" title="Load a puzzle">' +
+              '<span class="sudoku-button-container">' +
+              '<span class="sudoku-button-icon">🠕</span>' +
+              '<span class="sudoku-button-explain">Load</span>'+
+              '</span></button>';
 
         return html;
     }
@@ -1112,6 +1169,12 @@
         insertControlButtons(sudoku_div, options);
     }
 
+    window.onbeforeunload = function (e) {
+        for (const id of sudoku_div_ids) {
+            saveGrid(id);
+        }
+    }
+
     Sudoku.create = (sudoku_div_id, puzzle_str, options = {}) => {
         let default_options = {
             try_load: true,
@@ -1123,8 +1186,9 @@
             undo_button: true,
             stop_watch: false,
             load_form: false,
-            media_root: '',
+            hints: []
         };
+        sudoku_div_ids.push(sudoku_div_id);
         for (let [key, value] of Object.entries(options)) {
             if (key in default_options) {
                 default_options[key] = value;

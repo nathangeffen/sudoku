@@ -1033,27 +1033,39 @@
     }
 
     const restartButtonHTML = () => {
-        return '<button class="sudoku-restart" title="Clear board and restart">Restart</button>';
+        return '<button class="sudoku-restart" title="Clear board and restart">' +
+            '<span class="sudoku-button-icon">⏻</span>' +
+            '<span class="sudoku-button-explain">Restart</span></button>';
     }
 
     const colorsButtonHTML = () => {
-        return '<button class="sudoku-colors" title="Toggle warnings">Warn</button>';
+        return '<button class="sudoku-colors" title="Duplicate cell colors">' +
+            '<span class="sudoku-button-icon">⚠</span>' +
+            '<span class="sudoku-button-explain">Colors</span></button>';
     }
 
     const noteButtonHTML = () => {
-        return '<button class="sudoku-note-btn" title="Note">Note</button>';
+        return '<button class="sudoku-note-btn" title="Toggle note">'+
+            '<span class="sudoku-button-icon">🖊</span>' +
+            '<span class="sudoku-button-explain">Note</span></button>';
     }
 
     const undoButtonHTML = () => {
-        const html =  '<button class="sudoku-undo-btn" title="Undo">Undo</button>' +
-              '<button class="sudoku-redo-btn" title="Redo">Redo</button>';
+        const html =  '<button class="sudoku-undo-btn" title="Undo">' +
+              '<span class="sudoku-button-icon">↺</span>' +
+              '<span class="sudoku-button-explain">Undo</span></button></button>' +
+              '<button class="sudoku-redo-btn" title="Redo">↻' +
+              '<span class="sudoku-button-explain">Redo</span></button>';
         return html;
     }
 
     const loadFormHTML = () => {
-        const html = '<button class="sudoku-load-btn">Load</button>' +
-              '<input class="sudoku-load-input"' +
-              'type="text" minlength="81" maxlength="81">';
+        const html =  '<input class="sudoku-load-input"' +
+              'type="text" minlength="81" maxlength="81">'+
+              '<button class="sudoku-load-btn">' +
+              '<span class="sudoku-button-icon">🠕</span>'
+              '<span class="sudoku-button-explain">Load</span></button>';
+
         return html;
     }
 
@@ -1110,7 +1122,8 @@
             note_button: true,
             undo_button: true,
             stop_watch: false,
-            load_form: false
+            load_form: false,
+            media_root: '',
         };
         for (let [key, value] of Object.entries(options)) {
             if (key in default_options) {

@@ -2,14 +2,22 @@
 .sudoku-div {margin: auto;}
 
 .sudoku-table {
-    border: 3px solid black;
     margin: auto;
     border-collapse: collapse;
     table-layout: fixed;
+    border: 3px solid #0098df;
 }
 
 .sudoku-table-completed {
     border: 5px solid #000099;
+}
+
+tr[class^='sudoku-tr-']:nth-child(3n) {
+    border-bottom: 2px solid #0097de;
+}
+
+[class^='sudoku-td-']:nth-child(3n) {
+    border-right: 2px solid #0097de;
 }
 
 .sudoku-table td {
@@ -18,11 +26,11 @@
     text-align: center;
     margin: 0;
     padding: 2px;
-    border-right: 1px solid black;
-    border-bottom: 1px solid black;
+    border-right: 1px solid #0097de2b;
+    border-bottom: 1px solid #0097de2b;
     font-size: 1.2em;
     line-height: 1em;
-    word-wrap: break-word
+    word-wrap: break-word;
 }
 
 .sudoku-incomplete {
@@ -123,9 +131,8 @@
 }
 
 .sudoku-note {
-    font-size: 0.45em !important;
+    font-size: 0.5em !important;
     text-align: right !important;
-    vertical-align: bottom !important;
 }
 
 .sudoku-equal-digit {
@@ -139,14 +146,40 @@
 }
 
 .sudoku-control {
-    line-height: 2.5em;
+    line-height: 2em;
     display: block;
 }
 
 .sudoku-control button {
-    height: 33px;
+    height: 44px;
+    width: 44px;
     font-size: 0.85em;
+    font-family: Lucida Sans Unicode;
+    vertical-align: text-bottom;
 }
+
+.sudoku-colors {
+    background-color: lightblue;
+}
+
+.sudoku-button-icon {
+    display: grid;
+}
+
+.sudoku-button-explain {
+    display: grid;
+    font-size: 0.5em;
+}
+
+div.sudoku-no-colors .sudoku-colors {
+    background-color: white;
+}
+
+/* .sudoku-control button:focus { */
+/*     background-color: #0097de2b; */
+/*     border: 3px solid #0097de; */
+/*     outline: #0097de 1px; */
+/* } */
 
 /* This is necessary to prevent an image inside the button being captured. */
 .sudoku-buttons button > * {
@@ -188,6 +221,7 @@
 
 .sudoku-load-input {
     margin-left: 6px;
+    vertical-align: 25%;
 }
 
 .sudoku-stopwatch-box {
@@ -196,7 +230,8 @@
 }
 
 .sudoku-stopwatch {
-    margin: 8px;
+    margin-top: 4px;
+    margin-bottom: 8px;
     display: inline-block;
     padding-top: 8px;
     padding-bottom: 4px;

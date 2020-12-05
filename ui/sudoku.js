@@ -808,8 +808,9 @@
                     } else {
                         unsetNoteCell(cells[i]);
                     }
-                    delete user_try[sudoku_div_id];
+                    processCell(sudoku_div_id, cells[i]);
                 }
+                delete user_try[sudoku_div_id];
                 try_explain_text.textContent = 'Try';
             }
         } else {

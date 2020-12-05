@@ -97,6 +97,8 @@
 
     let hints = {};
 
+    let user_try = {};
+
     ///////////////////////////
 
     // Functions with no side effects
@@ -326,6 +328,11 @@
         return result;
     }
 
+    const isNoteCell = (cell) => {
+        if (cell.classList.contains('sudoku-note')) return true;
+        return false;
+    }
+
     // Functions with side effects
 
     // From https://stackoverflow.com/questions/1181700/set-cursor-position-on-contenteditable-div
@@ -353,6 +360,20 @@
             redo_stacks[sudoku_div_id].push([getCellIndex(cell),
                                              cell.textContent, note]);
         }
+        let sudoku_div = document.getElementById(sudoku_div_id);
+        let undo_btn = sudoku_div.getElementsByClassName('sudoku-undo-btn')[0];
+        if (undo_stacks[sudoku_div_id].length === 0) {
+            undo_btn.disabled = true;
+        } else {
+            undo_btn.disabled = false;
+        }
+        let redo_btn = sudoku_div.getElementsByClassName('sudoku-redo-btn')[0];
+        console.log(redo_stacks[sudoku_div_id].length);
+        if (redo_stacks[sudoku_div_id].length === 0) {
+            redo_btn.disabled = true;
+        } else {
+            redo_btn.disabled = false;
+        }
     }
 
     const setCellValue = (cell, value) => {
@@ -371,6 +392,14 @@
                 cell.innerHTML = "&nbsp;";
             }
         }
+    }
+
+    const setNoteCell = (cell) => {
+        cell.classList.add('sudoku-note');
+    }
+
+    const unsetNoteCell = (cell) => {
+        cell.classList.remove('sudoku-note');
     }
 
     const undo = (sudoku_div_id, undo_redo='u') => {
@@ -760,6 +789,42 @@
         }
     }
 
+    const tryBranch = (sudoku_div_id) => {
+        const cells = getCellsByDivId(sudoku_div_id);
+        let sudoku_div = document.getElementById(sudoku_div_id);
+        let try_btn = sudoku_div.getElementsByClassName('sudoku-try-btn')[0];
+        let try_explain_text = try_btn.getElementsByClassName(
+            'sudoku-button-explain')[0];
+        if (sudoku_div_id in user_try) {
+            if (confirm('Are you sure you wish to revert back to when you clicked try')) {
+                let saved_cells = user_try[sudoku_div_id];
+                console.log(saved_cells);
+                for (const cell of saved_cells) {
+                    const i = cell[0];
+                    setCellValue(cells[i], cell[1]);
+                    console.log("Text", cells[i].textContent);
+                    if (cell[2]) {
+                        setNoteCell(cells[i]);
+                    } else {
+                        unsetNoteCell(cells[i]);
+                    }
+                    delete user_try[sudoku_div_id];
+                }
+                try_explain_text.textContent = 'Try';
+            }
+        } else {
+            let saved_cells = [];
+            for (let i = 0; i < cells.length; i++) {
+                if (isProtectedCell(cells[i]) === false) {
+                    saved_cells.push([i, getCellValue(cells[i]),
+                                      isNoteCell(cells[i])]);
+                }
+            }
+            user_try[sudoku_div_id] = saved_cells;
+            try_explain_text.textContent = 'Untry';
+        }
+    }
+
     /*************** Stop watch management *******************/
 
     const getElapsedTime = (sudoku_div_id) => {
@@ -917,12 +982,14 @@
         }
         let undo_btn = sudoku_div.getElementsByClassName('sudoku-undo-btn')[0];
         if (undo_btn) {
+            undo_btn.disabled = true;
             undo_btn.addEventListener('click', function(e) {
                 undo(sudoku_div_id, 'u');
             });
         }
         let redo_btn = sudoku_div.getElementsByClassName('sudoku-redo-btn')[0];
         if (redo_btn) {
+            redo_btn.disabled = true;
             redo_btn.addEventListener('click', function(e) {
                 undo(sudoku_div_id, 'r');
             });
@@ -950,6 +1017,12 @@
             getElementsByClassName('sudoku-stopwatch')[0];
         if (stop_watch_span) {
             startStopWatch(sudoku_div_id);
+        }
+        let try_btn = sudoku_div.getElementsByClassName('sudoku-try-btn')[0];
+        if (try_btn) {
+            try_btn.addEventListener('click', function() {
+                tryBranch(sudoku_div_id);
+            });
         }
     }
 
@@ -1114,6 +1187,15 @@
         return html;
     }
 
+    const tryButtonHTML = () => {
+        return '<button class="sudoku-try-btn" title="Try a number">'+
+            '<span class="sudoku-button-container">' +
+            '<span class="sudoku-button-icon">ᛉ</span>' +
+            '<span class="sudoku-button-explain">Try</span>' +
+            '</span></button>';
+    }
+
+
     const loadFormHTML = () => {
         const html =  '<input class="sudoku-load-input"' +
               'type="text" minlength="81" maxlength="81">'+
@@ -1148,6 +1230,9 @@
         }
         if (options.undo_button === true) {
             innerhtml += undoButtonHTML();
+        }
+        if (options.try_button === true) {
+            innerhtml += tryButtonHTML();
         }
         if (options.load_form === true) {
             innerhtml += loadFormHTML();
@@ -1184,6 +1269,7 @@
             colors_button: true,
             note_button: true,
             undo_button: true,
+            try_button: true,
             stop_watch: false,
             load_form: false,
             hints: []

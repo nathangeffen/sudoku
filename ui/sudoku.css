@@ -156,6 +156,9 @@ tr[class^='sudoku-tr-']:nth-child(3n) {
     font-size: 0.85em;
     font-family: Lucida Sans Unicode;
     vertical-align: text-bottom;
+    border: 3px solid black;
+    border-radius: 8px;
+    margin-right: 6px;
 }
 
 .sudoku-colors {
@@ -181,12 +184,6 @@ div.sudoku-no-colors .sudoku-colors {
     background-color: white;
 }
 
-/* .sudoku-control button:focus { */
-/*     background-color: #0097de2b; */
-/*     border: 3px solid #0097de; */
-/*     outline: #0097de 1px; */
-/* } */
-
 /* This is necessary to prevent an image inside the button being captured. */
 .sudoku-buttons button > * {
   pointer-events: none;
@@ -204,12 +201,6 @@ div.sudoku-no-colors .sudoku-colors {
 
 .sudoku-control {
     text-align: center;
-}
-
-.sudoku-control button {
-    border: 3px solid black;
-    border-radius: 8px;
-    margin-right: 6px;
 }
 
 .sudoku-div button:hover {

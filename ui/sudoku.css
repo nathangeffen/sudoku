@@ -29,6 +29,7 @@ tr[class^='sudoku-tr-']:nth-child(3n) {
     border-right: 1px solid #0097de2b;
     border-bottom: 1px solid #0097de2b;
     font-size: 1.2em;
+    font-weight: bold;
     line-height: 1em;
     word-wrap: break-word;
 }
@@ -109,7 +110,7 @@ tr[class^='sudoku-tr-']:nth-child(3n) {
 
 .sudoku-protected {
     font-size: 1.2em;
-    font-weight: bold;
+    font-weight: normal !important;
     color: black;
 }
 

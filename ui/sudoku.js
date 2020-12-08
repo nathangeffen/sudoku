@@ -718,7 +718,8 @@
         for (const digit of digits) {
             digit.addEventListener("click", function(e) {
                 e.preventDefault();
-                if (active_cell && sudoku_div.contains(active_cell)) {
+                if (active_cell && sudoku_div.contains(active_cell) &&
+                    isProtectedCell(active_cell) == false) {
                     processInput(sudoku_div_id, active_cell, e.target.value);
                     processCell(sudoku_div_id, active_cell);
                 }

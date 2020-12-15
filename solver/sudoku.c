@@ -6,11 +6,21 @@
 
 #include "sudoku.h"
 
-void printf_c(int verbosity,
+static char *default_puzzle =
+        "000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+/* For calling thread safe drand */
+static _Thread_local struct drand48_data rng_buf;
+
+/*
+   Calls vprintf if verbose is set to true or priority is ESSENTIAL.
+*/
+
+static void printf_c(int priority,
               const char *format,
               ...)
 {
-    if (verbosity == ESSENTIAL || verbose) {
+    if (priority == ESSENTIAL || verbose) {
             va_list args;
             va_start(args, format);
             vprintf(format, args);
@@ -18,13 +28,27 @@ void printf_c(int verbosity,
     }
 }
 
-uint32_t
+
+//////////// Bit functions
+
+/*
+   Returns an unsigned integer with only the nth bit set. Zero-based, so
+   if n == 0, it returns 1. If n == 1 it returns 2 etc.
+*/
+
+static uint32_t
 set_only_bit(uint32_t n)
 {
     return 1 << n;
 }
 
-uint32_t
+/*
+  Returns the rightmost set bit (but used in the code on integers with just one
+  bit set usually). Zero-based. So will return 0 if the first bit is set but
+  also if no bits set.
+*/
+
+static uint32_t
 get_bit_index(uint32_t n)
 {
     uint32_t result = 0;
@@ -32,7 +56,11 @@ get_bit_index(uint32_t n)
     return result;
 }
 
-uint32_t
+/*
+  Counts the number of bits set in an integer.
+*/
+
+static uint32_t
 count_bits(uint32_t n)
 {
     uint32_t count = 0;
@@ -43,7 +71,64 @@ count_bits(uint32_t n)
     return count;
 }
 
-void
+/*
+  Get's the index in val of the nth bit equal to 1.
+
+  Completely zero-based. i.e.  if val == 0b1 and n == 0, then 0 is returned.
+  If val == 0b10 and n == 0 then 1 is returned. if val == 0b1001 and n == 1
+  then 3 is returned. If there isn't an nth set bit, then -1 is returned.
+ */
+
+int
+get_nth_set_bit(uint64_t val, int n)
+{
+    int i = 0;
+    while (val) {
+        if (val & 1) --n;
+        if (n < 0) return i;
+        val >>= 1;
+        i++;
+    }
+    return -1;
+}
+
+
+/*
+  Returns the set bits as human readable digits in a string.
+ */
+
+char *get_set_bits(uint64_t n) {
+    static const char* alphabet = "123456789";
+    static _Thread_local char s[BLOCK_SIZE + 1];
+    memset(s, 0, sizeof(s));
+    int j = 0;
+    for (int i = 0; i < BLOCK_SIZE; i++)
+        if (n & masks[i]) s[j++] = alphabet[i];
+    s[j] = 0;
+    return s;
+}
+
+
+/*
+   Prints the Sudoku grid as a string. Eg.
+   123456789456789123789123456214365897365897241897214365531642978648971532972538614
+*/
+
+static void
+print_grid_as_str(const grid_t grid) {
+    for (size_t i = 0; i < BOARD_SIZE; i++)
+        if (grid[i])
+            printf("%u", get_bit_index(grid[i]) + 1);
+        else
+            printf("0");
+    printf("\n");
+}
+
+/*
+  Initializes the board.
+ */
+
+static void
 init_board(struct board_s *board)
 {
     board->current_index = -1;
@@ -56,7 +141,13 @@ init_board(struct board_s *board)
     memset(board->solutions, 0, sizeof(board->solutions));
 }
 
-struct board_s
+/*
+  Converts a board with human numbers (i.e. 1-9 in standard Sudoku) to
+  a bitboard where the nth bit is set to the human interface value. So
+  3 will actually be 2^3 or 8.
+*/
+
+static struct board_s
 convert_to_bitboard(const grid_t puzzle)
 {
     struct board_s bitboard;
@@ -71,46 +162,21 @@ convert_to_bitboard(const grid_t puzzle)
     return bitboard;
 }
 
+///////////// Print functions
 
-uint32_t
-get_bit(uint32_t num, uint32_t n)
-{
-    return (num >> n) & 1;
-}
+/*
+  Prints the board in human readable form.
+  This is the function to use for normal human readable view of a Sudoku puzzle.
+*/
 
-void
-get_all_set_bits_as_vals(uint32_t num, uint32_t vals[BLOCK_SIZE])
-{
-    size_t j = 0;
-    for (size_t i = 0; i < BLOCK_SIZE; i++) vals[i] = 0;
-    for (size_t i = 0; i < BLOCK_SIZE; i++) {
-        if (get_bit(num, i)) {
-            vals[j] = i + 1;
-            j++;
-        }
-    }
-}
-
-void
-print_set_bits(uint32_t num)
-{
-    uint32_t vals[BLOCK_SIZE];
-    get_all_set_bits_as_vals(num, vals);
-    if (vals[0] == 0) {
-        printf_c(ESSENTIAL, "_");
-    } else {
-        for (size_t i = 0; i < BLOCK_SIZE && vals[i]; i++) {
-            if (i > 0) putchar(',');
-            printf_c(ESSENTIAL, "%u", vals[i]);
-        }
-    }
-}
-
-void
-print_bitboard(const struct board_s *bitboard)
+static void
+print_puzzle(const grid_t grid)
 {
     for (size_t i = 0; i < (BLOCK_SIZE * BLOCK_SIZE); i++) {
-        print_set_bits(bitboard->grid[i]);
+        if (grid[i] == 0)
+            printf_c(ESSENTIAL, "_");
+        else
+            printf_c(ESSENTIAL, "%u", get_bit_index(grid[i]) + 1);
         if ( (i + 1) == BOARD_SIZE)
             printf_c(ESSENTIAL, "\n");
         else if ( (i + 1) % (BLOCK_SIZE * MINI_BLOCK_SIZE) == 0)
@@ -118,26 +184,55 @@ print_bitboard(const struct board_s *bitboard)
         else if ( (i + 1) % BLOCK_SIZE == 0)
             printf_c(ESSENTIAL, "\n");
         else if ( (i + 1) % MINI_BLOCK_SIZE == 0)
-            printf_c(ESSENTIAL, "\t\t");
+            printf_c(ESSENTIAL, "  ");
         else
-            printf_c(ESSENTIAL, "\t");
+            printf_c(ESSENTIAL, " ");
     }
 }
 
-
-void
-print_binary(uint32_t n)
+void print_possibles(const struct board_s* board)
 {
-    for(int i = 0; i < 9; i++) {
-        if (n & 1)
-            printf_c(ESSENTIAL, "1");
-        else
-            printf_c(ESSENTIAL, "0");
-        n >>= 1;
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        char *s = get_set_bits(board->grid[i]);
+        int j = strlen(s);
+        int k = 0;
+        if (j == 0) {
+            putchar(' ');
+        } else if (j == 1) {
+            putchar(s[0]);
+            k++;
+        } else {
+            for (; k < j; k++) {
+                putchar(s[k]);
+            }
+        }
+
+        for (; k < BLOCK_SIZE; k++) {
+            putchar(' ');
+        }
+        putchar(' ');
+
+        if ( (i + 1) % 27 == 0) {
+            putchar('\n');
+            putchar('\n');
+        } else if ( (i + 1) % 9 == 0) {
+            putchar('\n');
+        } else if ( (i + 1) % 3 == 0) {
+            putchar(' ');
+        }
     }
 }
 
-struct board_s
+
+
+////////////// Solving functions
+
+/*
+  Finds all the possible values for a cell and sets the bits corresponding
+  to each value.
+*/
+
+static struct board_s
 fill_possibles(const struct board_s *bitboard)
 {
     struct board_s result = *bitboard;
@@ -153,7 +248,7 @@ fill_possibles(const struct board_s *bitboard)
                 k = rows[lk_up[0]][j];
                 if (k != i && count_bits(result.grid[k]) == 1)
                     mask = mask | result.grid[k];
-                k = blocks[lk_up[1]][j];
+                k = squares[lk_up[1]][j];
                 if (k != i && count_bits(result.grid[k]) == 1)
                     mask = mask | result.grid[k];
                 k = cols[lk_up[2]][j];
@@ -166,7 +261,11 @@ fill_possibles(const struct board_s *bitboard)
     return result;
 }
 
-struct board_s
+/*
+  Looks for cells which have only one possible value and sets them.
+*/
+
+static struct board_s
 fill_exclusions(const struct board_s *bitboard,
                 const size_t indices[BLOCK_SIZE][BLOCK_SIZE])
 {
@@ -191,28 +290,33 @@ fill_exclusions(const struct board_s *bitboard,
     return result;
 }
 
-void
-print_puzzle(const grid_t grid)
+/*
+  Saves a completed Sudoku puzzle into the solutions array in the bitboard
+  struct. Called by the check_bitboard function if it finds that a bitboard
+  is complete and valid.
+*/
+
+static void
+save_solution(struct board_s *bitboard)
 {
-    for (size_t i = 0; i < (BLOCK_SIZE * BLOCK_SIZE); i++) {
-        if (grid[i] == 0)
-            printf_c(ESSENTIAL, "_");
-        else
-            printf_c(ESSENTIAL, "%u", get_bit_index(grid[i]) + 1);
-        if ( (i + 1) == BOARD_SIZE)
-            printf_c(ESSENTIAL, "\n");
-        else if ( (i + 1) % (BLOCK_SIZE * MINI_BLOCK_SIZE) == 0)
-            printf_c(ESSENTIAL, "\n\n");
-        else if ( (i + 1) % BLOCK_SIZE == 0)
-            printf_c(ESSENTIAL, "\n");
-        else if ( (i + 1) % MINI_BLOCK_SIZE == 0)
-            printf_c(ESSENTIAL, "  ");
-        else
-            printf_c(ESSENTIAL, " ");
+    for (size_t i = 0; i < MAX_SOLUTIONS; i++) {
+        if (bitboard->solutions[i][0] == 0) {
+            memcpy(bitboard->solutions[i], bitboard->grid,
+                   sizeof(bitboard->grid));
+            break;
+        } else {
+            if (memcmp(bitboard->solutions[i], bitboard->grid,
+                       sizeof(bitboard->grid)) == 0)
+                break;
+        }
     }
 }
 
-bool
+/*
+   Checks if a row, square or column is valid or complete
+*/
+
+static bool
 check_bitboard_indices(struct board_s *bitboard,
                        const size_t indices[BLOCK_SIZE][BLOCK_SIZE])
 {
@@ -237,28 +341,18 @@ check_bitboard_indices(struct board_s *bitboard,
     return complete;
 }
 
-void
-save_solution(struct board_s *bitboard)
-{
-    for (size_t i = 0; i < MAX_SOLUTIONS; i++) {
-        if (bitboard->solutions[i][0] == 0) {
-            memcpy(bitboard->solutions[i], bitboard->grid,
-                   sizeof(bitboard->grid));
-            break;
-        } else {
-            if (memcmp(bitboard->solutions[i], bitboard->grid,
-                       sizeof(bitboard->grid)) == 0)
-                break;
-        }
-    }
-}
 
-void
+/*
+  Checks a bitboard for completeness or validity. Saves it in the solutions
+  array of the bitboard struct if it is complete and valid.
+ */
+
+static void
 check_bitboard(struct board_s *bitboard)
 {
     bitboard->valid = true;
     bitboard->complete = check_bitboard_indices(bitboard, cols);
-    bitboard->complete = check_bitboard_indices(bitboard, blocks) &&
+    bitboard->complete = check_bitboard_indices(bitboard, squares) &&
         bitboard->complete;
     bitboard->complete = check_bitboard_indices(bitboard, rows) &&
         bitboard->complete;
@@ -266,15 +360,13 @@ check_bitboard(struct board_s *bitboard)
         save_solution(bitboard);
 }
 
-void
-check_bitboard_comprehensive(struct board_s *bitboard)
-{
-    *bitboard = fill_possibles(bitboard);
-    check_bitboard(bitboard);
-}
+/*
+  Finds the next cell in the bitboard with more than one possible value.
+  The search_solution algorithm will then try one of the values in this cell.
+*/
 
-void
-get_next_index(struct board_s *bitboard)
+static void
+get_next_cell(struct board_s *bitboard)
 {
     do {
         ++bitboard->current_index;
@@ -283,16 +375,41 @@ get_next_index(struct board_s *bitboard)
              bitboard->current_index < BOARD_SIZE);
 }
 
-void
+/*
+  Repeatedly tries to fill values in until no progress can be made.
+*/
+
+static void
 fill(struct board_s *bitboard)
 {
-    *bitboard = fill_possibles(bitboard);
-    *bitboard = fill_exclusions(bitboard, rows);
-    *bitboard = fill_possibles(bitboard);
-    *bitboard = fill_exclusions(bitboard, blocks);
-    *bitboard = fill_possibles(bitboard);
-    *bitboard = fill_exclusions(bitboard, cols);
-    *bitboard = fill_possibles(bitboard);
+    int iter = 0;
+    struct board_s prev;
+    do {
+        prev = *bitboard;
+        *bitboard = fill_possibles(bitboard);
+        *bitboard = fill_exclusions(bitboard, rows);
+        *bitboard = fill_possibles(bitboard);
+        *bitboard = fill_exclusions(bitboard, squares);
+        *bitboard = fill_possibles(bitboard);
+        *bitboard = fill_exclusions(bitboard, cols);
+        *bitboard = fill_possibles(bitboard);
+        ++iter;
+    } while (memcmp(prev.grid,bitboard->grid,BOARD_SIZE*sizeof(uint32_t)) != 0);
+
+    if (iter > bitboard->iterations)
+        bitboard->iterations = iter;
+}
+
+/*
+  Fills as much of the bitboard as possible without needing recursion
+  and then checks if it's valid.
+ */
+
+static void
+check_bitboard_comprehensive(struct board_s *bitboard)
+{
+    fill(bitboard);
+    check_bitboard(bitboard);
 }
 
 /*
@@ -303,10 +420,9 @@ fill(struct board_s *bitboard)
  * for a solution.
  */
 struct board_s
-search_solution(struct board_s bitboard, int depth, int max_depth)
+search_solution(struct board_s bitboard, int depth, int max_depth, int *generate)
 {
-    struct board_s prev, new_board;
-    int iter = 0;
+    struct board_s new_board;
 
     if (depth > bitboard.depth)
         bitboard.depth = depth;
@@ -314,35 +430,40 @@ search_solution(struct board_s bitboard, int depth, int max_depth)
         bitboard.too_difficult = true;
         return bitboard;
     }
-    do {
-        prev = bitboard;
-        fill(&bitboard);
-        ++iter;
-    } while (memcmp(prev.grid,bitboard.grid,BOARD_SIZE*sizeof(uint32_t)) != 0);
 
-    if (iter > bitboard.iterations)
-        bitboard.iterations = iter;
+    fill(&bitboard);
 
     check_bitboard(&bitboard);
     if ( (bitboard.complete && bitboard.valid) ||
-         bitboard.current_index == BOARD_SIZE)
+         bitboard.current_index == BOARD_SIZE) {
+        if (generate > 0) {
+            --*generate;
+            printf("%d,", *generate);
+            print_grid_as_str(bitboard.grid);
+        }
         return bitboard;
-    else if (bitboard.valid == false)
+    } else if (bitboard.valid == false) {
         return bitboard;
+    }
 
-    get_next_index(&bitboard);
+    get_next_cell(&bitboard);
 
     for(size_t i = 0; i < BLOCK_SIZE; i++) {
         if (masks[i] & bitboard.grid[bitboard.current_index]) {
             new_board = bitboard;
             new_board.grid[bitboard.current_index] = masks[i];
-            new_board = search_solution(new_board, depth + 1, max_depth);
-            for (size_t j = 0; j < MAX_SOLUTIONS; j++)
-                if (new_board.solutions[j][0] && !bitboard.solutions[j][0])
-                    memcpy(bitboard.solutions[j], new_board.solutions[j],
-                           sizeof(new_board.solutions[j]));
-                else
-                    break;
+            new_board = search_solution(new_board, depth + 1, max_depth,
+                                        generate);
+            if (*generate < 0) {
+                for (size_t j = 0; j < MAX_SOLUTIONS; j++)
+                    if (new_board.solutions[j][0] && !bitboard.solutions[j][0])
+                        memcpy(bitboard.solutions[j], new_board.solutions[j],
+                               sizeof(new_board.solutions[j]));
+                    else
+                        break;
+            } else {
+                if (*generate == 0) return new_board;
+            }
             if (new_board.depth > bitboard.depth)
                 bitboard.depth = new_board.depth;
             if (new_board.solutions[MAX_SOLUTIONS - 1][0])
@@ -352,14 +473,23 @@ search_solution(struct board_s bitboard, int depth, int max_depth)
     return bitboard;
 }
 
+
+/*
+  Wrapper around the recursive search_solutions algorithm.
+ */
+
 void
-solve(struct board_s *bitboard, int max_depth)
+solve(struct board_s *bitboard, int max_depth, int generate)
 {
     check_bitboard_comprehensive(bitboard);
 
     if (bitboard->valid && bitboard->complete == false)
-        *bitboard = search_solution(*bitboard, 0, max_depth);
+        *bitboard = search_solution(*bitboard, 0, max_depth, &generate);
 }
+
+/*
+  Checks how many solutions have been found after solve has been called.
+ */
 
 int
 num_solutions(const struct board_s *board)
@@ -373,6 +503,10 @@ num_solutions(const struct board_s *board)
 
     return c;
 }
+
+/*
+  User friendly printout of results of attempt to solve puzzle.
+ */
 
 void print_result(const struct board_s *board)
 {
@@ -397,18 +531,13 @@ void print_result(const struct board_s *board)
     }
 }
 
-void
-print_grid(const grid_t grid) {
-    for (size_t i = 0; i < BOARD_SIZE; i++)
-        if (grid[i])
-            printf("%u", get_bit_index(grid[i]) + 1);
-        else
-            printf("0");
-    printf("\n");
-}
+/*
+  Prints puzzle information. If verbosity is on, prints count which indicates
+  how much of the board is solved, and depth which indicates puzzle difficulty.
+*/
 
 void
-print_essential_output(const struct board_s *board)
+print_puzzle_info(const struct board_s *board)
 {
     int count = 0;
     for (size_t i = 0; i < BOARD_SIZE; i++)
@@ -418,8 +547,12 @@ print_essential_output(const struct board_s *board)
     printf_c(ESSENTIAL, "Depth: %d\n", board->depth);
 
     printf_c(ESSENTIAL, "Puzzle: ", board->depth);
-    print_grid(board->grid);
+    print_grid_as_str(board->grid);
 }
+
+/*
+  Prints the solutions to a puzzle.
+ */
 
 void
 output_solution(grid_t grid, int max_depth)
@@ -429,7 +562,7 @@ output_solution(grid_t grid, int max_depth)
     board = convert_to_bitboard(grid);
     if (verbose)
         print_puzzle(board.grid);
-    solve(&board, max_depth);
+    solve(&board, max_depth, -1);
 
     if (verbose)
         print_result(&board);
@@ -437,22 +570,31 @@ output_solution(grid_t grid, int max_depth)
     n = num_solutions(&board);
     for (int i = 0; i < n; i++) {
         printf("%d,", i+1);
-        print_grid(board.solutions[i]);
+        print_grid_as_str(board.solutions[i]);
     }
 }
 
+/*
+  Shuffles an array of unsigned integers.
+*/
 
 void
 shuffle(uint32_t arr[],
         size_t n)
 {
     for (size_t i = n - 1; i > 0; i--) {
-        size_t r = rand() % (i + 1);
+        long r;
+        lrand48_r(&rng_buf, &r);
+        r = r % (i + 1);
         uint32_t t = arr[r];
         arr[r] = arr[i];
         arr[i] = t;
     }
 }
+
+/*
+  Fills an array from 0 to n-1.
+ */
 
 void
 fill_0_to_n(uint32_t arr[],
@@ -462,11 +604,20 @@ fill_0_to_n(uint32_t arr[],
         arr[i] = i;
 }
 
+/*
+  Fills an array from 0 to n-1 and then shuffles it.
+ */
+
 void fill_and_shuffle(uint32_t arr[], size_t n)
 {
     fill_0_to_n(arr, n);
     shuffle(arr, n);
 }
+
+/*
+  Randomly sets an integer to have one and only one of the first n bits set
+  where n is the size of the Sudoku alphabet (9 in the default version).
+*/
 
 void
 set_random_bit(uint32_t *n)
@@ -479,6 +630,12 @@ set_random_bit(uint32_t *n)
 
     *n = masks[i - 1];
 }
+
+/* Creates puzzles that are generally very hard to solve.
+   The higher min_depth the harder (and slower to create) it is. But
+   even leaving min_depth at 0 generally makes it hard enough. Setting
+   max_depth too high may result in a very long time to create some puzzles.
+*/
 
 struct board_s
 create_puzzle(int min_depth,
@@ -556,7 +713,7 @@ create_puzzle(int min_depth,
                 memcpy(&test_board, &board, sizeof(board));
                 fill(&test_board);
             }
-            solve(&test_board, max_depth);
+            solve(&test_board, max_depth, -1);
             n = num_solutions(&test_board);
             if (n == 0) {
                 *cell = mask ^ *cell;
@@ -581,6 +738,101 @@ create_puzzle(int min_depth,
 
     return test_board;
 }
+
+/*
+  This is used to create a random complete Sudoku board from which simpler
+  puzzles can be created. It's an order of magnitude slower at solving than the
+  search_solution algorithm. But it is useful for calculating the likely number
+  of completed Sudoku puzzles.
+*/
+struct board_choices_s
+make_random_puzzle(struct board_s *board)
+{
+    const size_t stack_size = 1000;
+    struct board_choices_s stack[stack_size];
+    struct board_s b, c;
+    int sp = 0;
+
+    b = *board;
+
+    fill(&b);
+
+    stack[sp].board = b;
+    stack[sp].choices = 1;
+
+    init_board(&stack[sp].used);
+    memset(&stack[sp].used.grid, 0, sizeof(stack[sp].used.grid));
+
+    ++sp;
+    check_bitboard(&stack[sp-1].board);
+
+    while(sp > 0 && sp < stack_size && stack[sp-1].board.complete == false) {
+        b = stack[sp-1].board;
+        c = stack[sp-1].used;
+
+        fill(&b);
+
+        // Remove used options
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            if (c.grid[i])
+                b.grid[i] = ~c.grid[i] & b.grid[i];
+        }
+
+        check_bitboard(&b);
+        if (b.valid == false) {
+            --sp;
+            continue;
+        }
+
+        // Find the cell with the fewest options > 1
+        int min_index = 0, min_bits = BLOCK_SIZE + 1;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            int j = count_bits(b.grid[i]);
+            if (j > 1 && j < min_bits) {
+                min_index = i;
+                min_bits = j;
+            }
+        }
+        long n;
+        lrand48_r(&rng_buf, &n);
+        n = n % min_bits;
+        int nth_bit = get_nth_set_bit(b.grid[min_index], n);
+        b.grid[min_index] = masks[nth_bit];
+
+        stack[sp-1].used.grid[min_index] |= masks[nth_bit];
+        stack[sp].board = b;
+        init_board(&stack[sp].used);
+        memset(&stack[sp].used.grid, 0, sizeof(stack[sp].used.grid));
+        stack[sp].choices = min_bits;
+        ++sp;
+    }
+    if (sp == 0 || sp == stack_size) {
+        fill(&stack[0].board);
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            if (stack[0].used.grid[i])
+                stack[0].board.grid[i] = ~stack[0].used.grid[i] &
+                    stack[0].board.grid[i];
+        }
+        init_board(&stack[0].board);
+        stack[0].board.valid = false;
+        stack[0].board.complete = false;
+        stack[0].choices = 0;
+        return stack[0];
+    } else {
+        uint64_t choices = 1;
+        for (int i = 0; i < sp; i++)
+            choices *= stack[i].choices;
+        stack[sp-1].board.complete = true;
+        stack[sp-1].board.valid = true;
+        stack[sp-1].choices = choices;
+        return stack[sp-1];
+    }
+}
+
+
+/*
+  Wrapper function for creating a new puzzle.
+*/
 
 void
 output_puzzle(int min_depth, bool symmetry, int max_depth)
@@ -609,9 +861,12 @@ output_puzzle(int min_depth, bool symmetry, int max_depth)
     if (verbose)
         print_result(&board);
 
-    print_essential_output(&board);
+    print_puzzle_info(&board);
 }
 
+/*
+  CLI help.
+ */
 
 void
 print_help(const char *prog)
@@ -633,6 +888,9 @@ print_help(const char *prog)
            "(Solves the puzzle)\n", prog);
 }
 
+/*
+  Processes the command line option for solving a puzzle.
+ */
 
 void
 process_arg_for_solving(char *puzzle_string,
@@ -662,10 +920,91 @@ process_arg_for_solving(char *puzzle_string,
     output_solution(grid, (max_depth == -1) ? SOLVING_MAX_DEPTH : max_depth);
 }
 
+/*
+  Allows the user to change the puzzle from which generation (creation of n
+  complete Sudoku board) will take place.
+*/
+
+void
+set_default_puzzle(const char *puzzle_str)
+{
+    int n = strlen(default_puzzle);
+    if (n != BOARD_SIZE) {
+        fprintf(stderr, "Incorrect puzzle length %d\n", n);
+        exit(1);
+    }
+
+    for (const char *c = puzzle_str; *c; c++) {
+        if (*c < '0' || *c <= '9') {
+            fprintf(stderr, "Incorrect character used %c\n", *c);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    strcpy(default_puzzle, puzzle_str);
+}
+
+/*
+  Wrapper function for generating as many complete Sudoku boards as possible.
+*/
+
+void
+process_arg_for_generating(int num_solutions,
+                           int max_depth)
+{
+    uint32_t *g;
+    char *c;
+    grid_t grid;
+
+    struct board_s board;
+
+    for (c = default_puzzle, g = grid; *c; c++, g++)
+        *g = (uint32_t) (*c - '0');
+
+    board = convert_to_bitboard(grid);
+    solve(&board, SOLVING_MAX_DEPTH, num_solutions);
+}
+
+
+/*
+  Process the make easy puzzle command line argument. Note the puzzle may not be
+  easy at all. But in general should be easier than the default puzzle creation
+  algorithm. max_cells specifies the maximum number of cells that may be filled
+  in.
+*/
+
+void
+process_arg_for_easy(int max_cells)
+{
+    struct board_s board;
+    struct board_choices_s bc;
+    init_board(&board);
+    memset(board.grid, 0, sizeof(board.grid));
+    bc = make_random_puzzle(&board);
+    print_result(&bc.board);
+    print_grid_as_str(bc.board.solutions[0]);
+    printf("%lu\n", bc.choices);
+}
+
+
+
+/*
+  Tests that most of the above functions work as expected. Never foolproof of
+  course.
+ */
+
 void tests()
 {
     int successes = 0, failures = 0;
     size_t n = sizeof(puzzles) / sizeof(struct puzzle_s);
+
+    // Test simple puzzle creator
+    struct board_s board;
+    struct board_choices_s bc;
+    init_board(&board);
+    bc = make_random_puzzle(&board);
+    print_puzzle(bc.board.grid);
+    print_result(&bc.board);
 
     // Test solver
     for (size_t i = 0; i < n; i++) {
@@ -676,7 +1015,7 @@ void tests()
         solution = convert_to_bitboard(puzzles[i].grid);
         if (verbose)
             print_puzzle(solution.grid);
-        solve(&solution, SOLVING_MAX_DEPTH);
+        solve(&solution, SOLVING_MAX_DEPTH, -1);
         printf_c(OPTIONAL, "",
                  "Puzzle %zu - %s - after (max depth: %d, max iterations: %d)\n",
                i, puzzles[i].description, solution.depth,
@@ -704,6 +1043,7 @@ void tests()
     }
     printf_c(ESSENTIAL, "Successes: %d. Failures: %d.\n",
              successes, failures);
+
 }
 
 int
@@ -711,7 +1051,7 @@ main(int argc, char *argv[])
 {
     int c, i, option_index, symmetry = 0, max_depth = -1;
 
-    srand(time(NULL));
+    srand48_r(time(NULL), &rng_buf);
 
     while (1) {
         option_index = 0;
@@ -733,9 +1073,19 @@ main(int argc, char *argv[])
             break;
         case 'r':
             srand(atoi(optarg));
+            srand48_r(atoi(optarg), &rng_buf);
             break;
         case 's':
             process_arg_for_solving(optarg, max_depth);
+            break;
+        case 'p':
+            set_default_puzzle(optarg);
+            break;
+        case 'g':
+            process_arg_for_generating(atoi(optarg), max_depth);
+            break;
+        case 'e':
+            process_arg_for_easy(atoi(optarg));
             break;
         case 'v':
             verbose = atoi(optarg);

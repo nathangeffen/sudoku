@@ -16,6 +16,7 @@ static const char* alphabet = "0123456789";
 
 static const struct option long_options[] = {
     {"solve",       required_argument, 0,  's' },
+    {"puzzle",      required_argument, 0,  'p' },
     {"generate",    required_argument, 0,  'g' },
     {"very-easy",   no_argument,       0,  'v' },
     {"easy",        no_argument,       0,  'e' },
@@ -27,7 +28,7 @@ static const struct option long_options[] = {
     {0,             0,                 0,   0  }
 };
 
-static const char *options = "s:g:vemdr:th";
+static const char *options = "s:p:g:vemdr:th";
 
 static const size_t rows[BLOCK_SIZE][BLOCK_SIZE] = {
     {0,   1,  2,  3,  4,  5,  6,  7,  8 },
@@ -144,7 +145,7 @@ char* binary(uint64_t n, int digits)
 
 
 int
-num_bits(uint64_t n)
+count_bits(uint64_t n)
 {
     uint64_t count = 0;
     while (n) {
@@ -186,7 +187,7 @@ get_block_bits(const struct board_s *board, int index, const size_t block[])
     uint64_t result = 0;
     for (int i = 0; i < BLOCK_SIZE; i++) {
         int j = block[i];
-        if (j != index && num_bits(board->cells[j]) == 1)
+        if (j != index && count_bits(board->cells[j]) == 1)
             result = result | board->cells[j];
     }
     return result;
@@ -306,47 +307,47 @@ copy_board(struct board_s *to, struct board_s *from)
 }
 
 bool
-is_valid_block(const struct board_s *board, int index, const size_t block[])
+is_valid_block(const struct board_s *board,
+               const size_t block[BLOCK_SIZE][BLOCK_SIZE])
 {
-    for (int i = 0; i < BLOCK_SIZE; i++) {
-        int j = block[i];
-        if (j == index || num_bits(board->cells[j]) > 1)
-            continue;
-        if (board->cells[j] == board->cells[index])
-            return false;
+    for (size_t i = 0; i < BLOCK_SIZE; i++) {
+        uint64_t mask = 0;
+        for (size_t j = 0; j < BLOCK_SIZE; j++) {
+            size_t l = block[i][j];
+            if (board->cells[l] == 0) return false;
+            if (count_bits(board->cells[l]) == 1) {
+                if ( (mask & board->cells[l]) )
+                    return false;
+                mask = mask | board->cells[l];
+            } else {
+                if ( (board->cells[l] == 0)
+                     || (board->cells[l] && (mask ^ board->cells[l]) == 0) )
+                    return false;
+            }
+        }
     }
     return true;
 }
 
 bool
-is_valid(const struct board_s *board, bool zero_broken)
+is_valid(const struct board_s *board)
 {
-    const size_t *l;
-    for (int i = 0; i < BOARD_SIZE; i++) {
-        if (zero_broken && board->cells[i] == 0) return false;
-        if (num_bits(board->cells[i]) != 1) continue;
-        l = lookup[i];
-        if (is_valid_block(board, i, rows[l[0]]) &&
-            is_valid_block(board, i, blocks[l[1]]) &&
-            is_valid_block(board, i, cols[l[2]]))
-            ;
-        else
-            return false;
-    }
-    return true;
+    return is_valid_block(board, rows) &&
+        is_valid_block(board, blocks) &&
+        is_valid_block(board, cols);
 }
 
-bool is_broken(const struct board_s *board, bool zero_broken)
+bool is_broken(const struct board_s *board)
 {
-    return !is_valid(board, zero_broken);
+    return !is_valid(board);
 }
 
 bool is_complete(const struct board_s *board)
 {
     for (int i = 0; i < BOARD_SIZE; i++)
-        if (num_bits(board->cells[i]) != 1)
+        if (count_bits(board->cells[i]) != 1)
             return false;
-    if (is_valid(board, false))
+    if (is_valid(board))
         return true;
     else
         return false;
@@ -358,7 +359,7 @@ fill_possibles(struct board_s *board)
 {
     const size_t *l;
     for (int i = 0; i < BOARD_SIZE; i++) {
-        if (num_bits(board->cells[i]) != 1) {
+        if (count_bits(board->cells[i]) != 1) {
             l = lookup[i];
             uint64_t r, b, c, x;
             r = get_block_bits(board, i, rows[l[0]]);
@@ -393,18 +394,24 @@ fill_exclusions(struct board_s *board,
 }
 
 void
-fill_possibles_continuously(struct board_s *board)
+fill(struct board_s *board)
+{
+    fill_possibles(board);
+    fill_exclusions(board, rows);
+    fill_possibles(board);
+    fill_exclusions(board, blocks);
+    fill_possibles(board);
+    fill_exclusions(board, cols);
+    fill_possibles(board);
+}
+
+void
+fill_repeatedly(struct board_s *board)
 {
     struct board_s prev;
     do {
         prev = *board;
-        fill_possibles(board);
-        fill_exclusions(board, rows);
-        fill_possibles(board);
-        fill_exclusions(board, blocks);
-        fill_possibles(board);
-        fill_exclusions(board, cols);
-        fill_possibles(board);
+        fill(board);
     } while (memcmp(board->cells, prev.cells, sizeof(board->cells)));
 }
 
@@ -422,10 +429,11 @@ fill_cells(struct board_s *board, bool rnd)
     int sp = 0;
 
     b = *board;
-    fill_possibles_continuously(&b);
+    fill_repeatedly(&b);
 
     stack[sp].board = b;
     stack[sp].choices = 1;
+
     init_board(&stack[sp].used);
     ++sp;
 
@@ -433,7 +441,8 @@ fill_cells(struct board_s *board, bool rnd)
           is_complete(&stack[sp-1].board) == false) {
         b = stack[sp-1].board;
         c = stack[sp-1].used;
-        fill_possibles_continuously(&b);
+
+        fill_repeatedly(&b);
 
         // Remove used options
         for (int i = 0; i < BOARD_SIZE; i++) {
@@ -441,7 +450,7 @@ fill_cells(struct board_s *board, bool rnd)
                 b.cells[i] = ~c.cells[i] & b.cells[i];
         }
 
-        if (is_broken(&b, true)) {
+        if (is_broken(&b)) {
             --sp;
             continue;
         }
@@ -449,7 +458,7 @@ fill_cells(struct board_s *board, bool rnd)
         // Find the cell with the fewest options > 1
         int min_index = 0, min_bits = BLOCK_SIZE + 1;
         for (int i = 0; i < BOARD_SIZE; i++) {
-            int j = num_bits(b.cells[i]);
+            int j = count_bits(b.cells[i]);
             if (j > 1 && j < min_bits) {
                 min_index = i;
                 min_bits = j;
@@ -500,21 +509,21 @@ solve(const struct board_s *board, struct board_s solutions[],
     for (int i = 0; i < max_solutions ; i++)
         init_board(&solutions[i]);
     // Catch corner cases
-    if (is_complete(board)) {
-        solutions[0] = *board;
+    b = *board;
+    fill_repeatedly(&b);
+    if (is_complete(&b)) {
+        solutions[0] = b;
         solutions[0].solved = true;
         return 1;
     };
-    if (is_broken(board, false)) {
+    if (is_broken(&b)) {
         solutions[0] = *board;
         solutions[0].broken = true;
         return 0;
     }
-    b = *board;
-    fill_possibles_continuously(&b);
     int n = 0;
     for (int i = 0; i < BOARD_SIZE && n < max_solutions; i++) {
-        if (num_bits(b.cells[i]) > 1) {
+        if (count_bits(b.cells[i]) > 1) {
             for (int j = 1; j < BLOCK_SIZE + 1 && n < max_solutions; j++) {
                 if (b.cells[i] & masks[j]) {
                     c = b;
@@ -541,7 +550,7 @@ int inc_counter(int counter[], int max_counter[])
         if (counter[i] != max_counter[i]) {
             ++counter[i];
             for (int j=i+1; j < BOARD_SIZE; j++)
-                counter[j] = 1;
+                counter[j] = 0;
             break;
         }
     }
@@ -555,14 +564,13 @@ void generate(struct board_s board, int n)
     int i = BOARD_SIZE - 1;
     char puzzle[BOARD_SIZE + 1];
 
-    fill_possibles_continuously(&board);
-    if (is_broken(&board, true)) return;
+    fill_repeatedly(&board);
+    if (is_broken(&board)) return;
 
     for (int i = 0; i < BOARD_SIZE; i++) {
         counter[i] = 0;
-        max_counter[i] = num_bits(board.cells[i]) - 1;
+        max_counter[i] = count_bits(board.cells[i]) - 1;
     }
-
     // The second part of this condition will not be reached in our lifetimes
     // but it's there for completeness
     while(n > 0 && memcmp(counter, max_counter, sizeof(counter)) != 0) {
@@ -590,7 +598,7 @@ void test()
 
         printf("Bit count:\n");
         for (int i = 0; i < sizeof(inp) / sizeof(inp[0]); i++) {
-            int j = num_bits(inp[i]);
+            int j = count_bits(inp[i]);
             if (j != out[i]) {
                 printf("Bit count err. Index %d Val %lu Expected %lu Actual %d\n",
                        i, inp[i], out[i], j);
@@ -651,17 +659,17 @@ void test()
         uint64_t b = get_block_bits(&board, 0, blocks[l[1]]);
         uint64_t c = get_block_bits(&board, 0, cols[l[2]]);
         uint64_t x = (~(r | b | c)) & all_ones;
-        int j = num_bits(r);
+        int j = count_bits(r);
         if (j != 5) {
             printf("Get block bits err r. Expected 5. Actual %d\n", j);
             ++errors;
         }
-        j = num_bits(b);
+        j = count_bits(b);
         if (j != 5) {
             printf("Get block bits err b. Expected 5. Actual %d\n", j);
             ++errors;
         }
-        j = num_bits(c);
+        j = count_bits(c);
         if (j != 6) {
             printf("Get block bits err b. Expected 6. Actual %d\n", j);
             ++errors;
@@ -737,7 +745,8 @@ void test()
                    __LINE__, !b, b);
             ++errors;
         }
-        b = is_broken(&board, false);
+        fill_possibles(&board);
+        b = is_broken(&board);
         if (b) {
             printf("Is broken err %d. Expected %d. Actual %d\n",
                    __LINE__, !b, b);
@@ -755,7 +764,8 @@ void test()
         const char *broken = "458726193917483256623159487561278934372964518"
             "849315762235897641786541329194632857";
         board = convert_str_board(broken);
-        b = is_broken(&board, false);
+        fill_possibles(&board);
+        b = is_broken(&board);
         if (!b) {
             printf("Is broken err %d. Expected %d. Actual %d\n",
                    __LINE__, !b, b);
@@ -783,7 +793,7 @@ void test()
         printf("Printing board with possibles.\n");
         print_board(&board, true);
         for (int i = 0; i < BOARD_SIZE; i++) {
-            int j = num_bits(board.cells[i]);
+            int j = count_bits(board.cells[i]);
             if (i == 0 || i == 45 || i == 46 || i == 64 || i == 72 || i == 73) {
                 if (j != 2) {
                     printf("Get possibles err. Expected 2 bits."
@@ -809,7 +819,7 @@ void test()
             "123456789000000000000000000000000000000000000000000000000000000000000000000000000";
         struct board_s board = convert_str_board(empty);
         struct board_choices_s bc = fill_cells(&board, false);
-        if (is_broken(&bc.board, true)) {
+        if (is_broken(&bc.board)) {
             printf("Fill cells err. Board broken.\n");
             print_board(&bc.board, true);
             ++errors;
@@ -821,7 +831,7 @@ void test()
         }
         board = convert_str_board(empty);
         bc = fill_cells(&board, true);
-        if (is_broken(&bc.board, true)) {
+        if (is_broken(&bc.board)) {
             printf("Fill cells random err. Board broken.\n");
             print_board(&bc.board, true);
             ++errors;
@@ -890,11 +900,11 @@ main(int argc, char *argv[])
     int c, option_index;
     char puzzle[BOARD_SIZE + 2];
     struct board_s board, solutions[2];
-    const char *empty =
-        "123456789000000000000000000000000000000000000000000000000000000000000000000000000";
 
     long seed = 0;
     srand48_r(seed, &rng_buf);
+    strcpy(puzzle,
+            "123456789000000000000000000000000000000000000000000000000000000000000000000000000");
 
     while (1) {
         option_index = 0;
@@ -920,8 +930,11 @@ main(int argc, char *argv[])
                 printf("2,%s\n", puzzle);
             }
             break;
+        case 'p':
+            strncpy(puzzle, optarg, BOARD_SIZE+1);
+            break;
         case 'g':
-            board = convert_str_board(empty);
+            board = convert_str_board(puzzle);
             generate(board, atoi(optarg));
             break;
         case 'v':

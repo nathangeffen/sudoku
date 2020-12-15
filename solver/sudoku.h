@@ -18,6 +18,16 @@
 #include <time.h>
 #include <unistd.h>
 
+/*
+   Sudoku consists of rows, columns and squares. In this code we refer to each
+   one of those as a block.  For standard Sudoku each block is 3x3. So we set
+   the MINI_BLOCK_SIZE to 3 (known as the rank in Sudoku/math jargon).  Then we
+   preset the rows, squares and columns to the indices of 9x9 board Sudoku.
+
+   Nice to do: Code this more flexible to support Sudoku with rank = 4, 5 or
+   even 6. (But for 6 we need to change all uint32_t to uint64t.)
+*/
+
 #define MINI_BLOCK_SIZE 3
 #define BLOCK_SIZE (MINI_BLOCK_SIZE * MINI_BLOCK_SIZE)
 #define BOARD_SIZE (BLOCK_SIZE * BLOCK_SIZE)
@@ -42,7 +52,7 @@ static const size_t rows[BLOCK_SIZE][BLOCK_SIZE] = {
     {72, 73, 74, 75, 76, 77, 78, 79, 80 }
 };
 
-static const size_t blocks[BLOCK_SIZE][BLOCK_SIZE] = {
+static const size_t squares[BLOCK_SIZE][BLOCK_SIZE] = {
     {0, 1, 2,
      9, 10, 11,
      18, 19, 20},
@@ -101,6 +111,11 @@ static const size_t lookup[BOARD_SIZE][MINI_BLOCK_SIZE] = {
     {8, 8, 6}, {8, 8, 7}, {8, 8, 8}
 };
 
+/*
+  In standard Sudoku these are the possible values of a cell of a completed
+  board.
+*/
+
 static const uint32_t masks[BLOCK_SIZE] = {
     0b00000000000000000000000000000001,
     0b00000000000000000000000000000010,
@@ -114,26 +129,46 @@ static const uint32_t masks[BLOCK_SIZE] = {
 };
 
 
+/* This stores the board */
 typedef uint32_t grid_t[BOARD_SIZE];
 
+/* The main data structure */
 struct board_s {
-    grid_t grid;
-    grid_t solutions[MAX_SOLUTIONS];
-    bool complete;
-    bool valid;
-    bool too_difficult;
-    int current_index;
-    uint32_t current_mask;
-    bool bitboard;
-    int depth;
-    int iterations;
+    grid_t grid; // The board
+    grid_t solutions[MAX_SOLUTIONS]; // Maximum number of solutions (2 default)
+    bool complete; // Whether the Sudoku board is complete
+    bool valid; // Whether it's valid
+    bool too_difficult; // Whether our solver cannot solve it
+    int current_index; // Used by the search_solution algorithm to try ab option
+    uint32_t current_mask; // Saves the mask so it can be restored
+    bool bitboard; // Whether this has been converted to human useable numbers
+    int depth; // How deep the solving algorithm had to go.
+    int iterations; // Maximum iterations used by the solving algorithm
 };
+
+
+/*
+  This is used by the less efficient simple puzzle making algorithm.  It's got a
+  second use: Run it many times and then average (or max?) the choices element
+  to try to calculate the number of possible completed Sudoku puzzles.
+*/
+struct board_choices_s {
+    struct board_s board, used;
+    uint64_t choices; // Used to determine number of possible Sudoku positions
+};
+
+
+/*
+  Used solely for the test cases.
+*/
 
 struct puzzle_s {
     const char *description;
     const grid_t grid;
     int expected_solutions;
 };
+
+/* Test puzzles. */
 
 static struct puzzle_s puzzles[] = {
     {
@@ -301,10 +336,15 @@ static struct puzzle_s puzzles[] = {
     }
 };
 
+/* Command line option data structures */
+
 const struct option long_options[] = {
     {"create",       required_argument, 0,  'c' },
     {"symmetrical",  no_argument,       0,  'm' },
     {"solve",        required_argument, 0,  's' },
+    {"puzzle",       required_argument, 0,  'p' },
+    {"generate",     required_argument, 0,  'g' },
+    {"easy",         required_argument, 0,  'e' },
     {"depth",        required_argument, 0,  'd' },
     {"random-seed",  required_argument, 0,  'r' },
     {"verbose",      required_argument, 0,  'v' },
@@ -313,11 +353,14 @@ const struct option long_options[] = {
     {0,              0,                 0,   0  }
 };
 
-const char *options = "c:ms:d:r:v:th";
+const char *options = "c:ms:p:g:e:d:r:v:th";
 const char *arguments[] = {
     "hardness",
     "",
     "puzzle",
+    "puzzle",
+    "integer",
+    "integer",
     "integer",
     "integer",
     "0 or 1",
@@ -330,6 +373,9 @@ const char *descriptions[] = {
     "Creates a puzzle. Argument of 0 is easiest. 2 or higher is very hard.",
     "Ensures the puzzle created will be symmetrical",
     "Solves a puzzle. Argument is string of 81 digits from 0 to 9.",
+    "Changes the default puzzle for generating from (default is blank board).",
+    "Generates n puzzles from the default puzzle.",
+    "Make easier puzzle (specify maximum filled in cells).",
     "Sets the maximum recursive depth to search.",
     "Sets the random seed (which otherwise is set by the time).",
     "Print out less (0) or more (1). By default, output is verbose.",

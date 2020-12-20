@@ -436,7 +436,7 @@ search_solution(struct board_s bitboard, int depth, int max_depth, int *generate
     check_bitboard(&bitboard);
     if ( (bitboard.complete && bitboard.valid) ||
          bitboard.current_index == BOARD_SIZE) {
-        if (generate > 0) {
+        if (*generate > 0) {
             --*generate;
             printf("%d,", *generate);
             print_grid_as_str(bitboard.grid);
@@ -746,7 +746,7 @@ create_puzzle(int min_depth,
   of completed Sudoku puzzles.
 */
 struct board_choices_s
-make_random_puzzle(struct board_s *board)
+make_random_complete_board(struct board_s *board)
 {
     const size_t stack_size = 1000;
     struct board_choices_s stack[stack_size];
@@ -824,11 +824,71 @@ make_random_puzzle(struct board_s *board)
             choices *= stack[i].choices;
         stack[sp-1].board.complete = true;
         stack[sp-1].board.valid = true;
+        memcpy(stack[sp-1].board.grid, stack[sp-1].board.solutions[0],
+               BOARD_SIZE*sizeof(uint32_t));
         stack[sp-1].choices = choices;
         return stack[sp-1];
     }
 }
 
+bool
+unique_solution(struct board_s board)
+{
+    solve(&board, SOLVING_MAX_DEPTH, -1);
+    if (board.valid && num_solutions(&board) == 1)
+        return true;
+    else
+        return false;
+}
+
+/*
+  Makes easyish puzzles. At least not usually as hard as the default method.
+  The symmetry parameter ensures the puzzle is symmetrical. The min_removals
+  parameter is the minimum number of blank squares needed for the puzzle.
+  Note that the higher the value of min_removals the slower this will be and at
+  some high value it sends this function into an endless loop.
+*/
+
+struct board_s
+make_easy_puzzle(bool symmetry, int min_removals) {
+    struct board_s board, prev;
+    int i;
+    if (symmetry) min_removals /= 2;
+    do {
+        i = 0;
+        struct board_choices_s bc;
+        uint32_t shuffled_indices[BOARD_SIZE];
+        int num_cells;
+
+        if (symmetry) {
+            num_cells = BOARD_SIZE / 2 + 1;
+        } else {
+            num_cells = BOARD_SIZE;
+        }
+        fill_and_shuffle(shuffled_indices, num_cells);
+
+        init_board(&board);
+        memset(board.grid, 0, sizeof(board.grid));
+        bc = make_random_complete_board(&board);
+
+        memcpy(board.grid, bc.board.solutions[0], BOARD_SIZE * sizeof(uint32_t));
+        board.complete = false;
+
+        for (; i < num_cells && (i < min_removals || min_removals == 0); i++) {
+            int r = shuffled_indices[i];
+            prev = board;
+            board.grid[r] = 0;
+            if (symmetry && r != 40)
+                board.grid[80 - r] = 0;
+            if (unique_solution(board) == false)
+                break;
+        }
+    } while (i < min_removals);
+    if (min_removals)
+        return board;
+    else
+        return prev;
+}
 
 /*
   Wrapper function for creating a new puzzle.
@@ -882,7 +942,7 @@ print_help(const char *prog)
     }
     printf_c(ESSENTIAL, "Examples:\n");
     printf_c(ESSENTIAL, "%s -c 0\n (Creates a simple puzzle)\n", prog);
-    printf_c(ESSENTIAL, "%s -m -c 2\n (Creates a hard symmetrical puzzle)\n", prog);
+    printf_c(ESSENTIAL, "%s -m -c 2\n (Creates a hard symmetry puzzle)\n", prog);
     printf_c(ESSENTIAL, "%s -s 3009857000080000200004000080006304000058219000090470006"
            "00004000010000200002106009\n"
            "(Solves the puzzle)\n", prog);
@@ -974,16 +1034,10 @@ process_arg_for_generating(int num_solutions,
 */
 
 void
-process_arg_for_easy(int max_cells)
+process_arg_for_easy(int symmetry, int max_cells)
 {
-    struct board_s board;
-    struct board_choices_s bc;
-    init_board(&board);
-    memset(board.grid, 0, sizeof(board.grid));
-    bc = make_random_puzzle(&board);
-    print_result(&bc.board);
-    print_grid_as_str(bc.board.solutions[0]);
-    printf("%lu\n", bc.choices);
+    struct board_s board = make_easy_puzzle(symmetry, max_cells);
+    print_grid_as_str(board.grid);
 }
 
 
@@ -999,12 +1053,18 @@ void tests()
     size_t n = sizeof(puzzles) / sizeof(struct puzzle_s);
 
     // Test simple puzzle creator
-    struct board_s board;
-    struct board_choices_s bc;
-    init_board(&board);
-    bc = make_random_puzzle(&board);
-    print_puzzle(bc.board.grid);
-    print_result(&bc.board);
+    struct board_s board = make_easy_puzzle(true, 20);
+    if (verbose)
+        print_grid_as_str(board.grid);
+    board = convert_to_bitboard(board.grid);
+    solve(&board, SOLVING_MAX_DEPTH, -1);
+    if (num_solutions(&board) == 1) {
+        ++successes;
+    } else {
+        printf_c(ESSENTIAL, "Easy puzzle has more than one solution\n");
+        print_grid_as_str(board.grid);
+        ++failures;
+    }
 
     // Test solver
     for (size_t i = 0; i < n; i++) {
@@ -1085,7 +1145,7 @@ main(int argc, char *argv[])
             process_arg_for_generating(atoi(optarg), max_depth);
             break;
         case 'e':
-            process_arg_for_easy(atoi(optarg));
+            process_arg_for_easy(symmetry, atoi(optarg));
             break;
         case 'v':
             verbose = atoi(optarg);
